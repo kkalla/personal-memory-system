@@ -437,7 +437,7 @@ git commit -m "feat: memory-tick SessionStart 인덱스 주입 스크립트"
 - Consumes: Task 4·5의 스크립트 절대경로
 - Produces: Claude Code가 발견 가능한 memory-tick 스킬 + 활성화된 hook 2개
 
-- [ ] **Step 1: SKILL.md 작성**
+- [x] **Step 1: SKILL.md 작성**
 
 `skills/memory-tick/SKILL.md`:
 
@@ -491,7 +491,9 @@ created: <YYYY-MM-DD>
 4. 저장할 게 없으면 아무 것도 하지 않는다 — 억지로 만들지 않는다.
 ```
 
-- [ ] **Step 2: symlink 생성**
+결과: 브리핑 원문 그대로 전사 완료. 파일 생성 확인 (`skills/memory-tick/SKILL.md`, 2.1K).
+
+- [x] **Step 2: symlink 생성**
 
 ```bash
 ln -sfn /Users/max/00_Projects/95_personal-memory/skills/memory-tick ~/.claude/skills/memory-tick
@@ -500,14 +502,18 @@ ls -la ~/.claude/skills/memory-tick/
 
 Expected: SKILL.md 등 4개 파일 보임.
 
-- [ ] **Step 3: memory 폴더 + 빈 인덱스 생성**
+결과: 예상대로 4개 파일(SKILL.md, session-start-memory.sh, stop-hook-throttle.sh, test_hooks.sh) 확인. `readlink ~/.claude/skills/memory-tick` → repo 경로 정상 해석. 심볼릭 링크 생성 직후 스킬 목록에 `memory-tick`이 자동 노출됨(discovery 정상 동작 확인).
+
+- [x] **Step 3: memory 폴더 + 빈 인덱스 생성**
 
 ```bash
 mkdir -p "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/96_memory/memory"
 touch "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/96_memory/memory/MEMORY.md"
 ```
 
-- [ ] **Step 4: settings.json에 hooks 등록**
+결과: 폴더 + 빈 `MEMORY.md`(0바이트) 생성 확인.
+
+- [x] **Step 4: settings.json에 hooks 등록**
 
 `~/.claude/settings.json`을 Read로 열어 기존 `hooks` 구조 확인 후, `SessionStart`와 `Stop` 배열에 아래 항목을 **append** (기존 항목 보존):
 
@@ -546,7 +552,9 @@ python3 -c "import json; json.load(open('/Users/max/.claude/settings.json')); pr
 
 Expected: `OK`
 
-- [ ] **Step 5: hook 스모크 테스트 (수동 실행)**
+결과: `~/.claude/settings.json`은 기존에 `PostToolUse`만 있고 `SessionStart`/`Stop` 키는 없었음(브리핑의 "기존 SessionStart 항목 존재" 가정과 달랐음) — python3 스크립트로 `hooks.setdefault("SessionStart", [])`/`hooks.setdefault("Stop", [])` 후 append하는 방식으로 두 키를 새로 생성해 안전하게 추가. 쓰기 전 `~/.claude/settings.json.bak-task6`로 백업. `python3 -c "import json; json.load(...)"` → `OK`. `diff`로 백업과 대조해 기존 `PostToolUse` 블록 등 다른 내용은 전혀 변경되지 않고, `SessionStart`/`Stop` 두 키만 순수 추가됐음을 확인 (상세 diff는 task-6-report.md 참고).
+
+- [x] **Step 5: hook 스모크 테스트 (수동 실행)**
 
 ```bash
 echo '{}' | /Users/max/00_Projects/95_personal-memory/skills/memory-tick/stop-hook-throttle.sh
@@ -555,7 +563,9 @@ echo '{}' | /Users/max/00_Projects/95_personal-memory/skills/memory-tick/stop-ho
 
 Expected: 첫 커맨드는 block JSON 또는 무출력(30분 스로틀 상태에 따라), 둘째는 라벨+빈 인덱스 출력. 둘 다 exit 0.
 
-- [ ] **Step 6: 커밋**
+결과: 기본 마커 경로(`~/.claude/memory-tick-last-check`)에 마커가 없는 상태(Task 4 테스트는 자체 tmpdir 마커만 사용해 기본 경로에 흔적을 남기지 않음)라 첫 실제 실행에서 block JSON 정상 출력, exit 0. 직후 재실행은 스로틀에 걸려 무출력 확인(정상 동작). `session-start-memory.sh`는 라벨 한 줄 출력, exit 0(MEMORY.md가 빈 파일이라 본문은 없음 — 예상대로). `skills/memory-tick/test_hooks.sh` 재실행해 `PASS: stop-hook-throttle`, `PASS: session-start-memory` 둘 다 확인 — 스모크 테스트가 기존 TDD 테스트에 영향 없음.
+
+- [x] **Step 6: 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
