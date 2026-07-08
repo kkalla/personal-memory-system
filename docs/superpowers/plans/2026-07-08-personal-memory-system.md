@@ -238,7 +238,7 @@ git add -A && git commit -m "chore: secall MCP user 스코프 등록"
 **Interfaces:**
 - Produces: Stop hook 커맨드로 등록될 실행 파일. stdin으로 hook JSON을 받고, 스로틀 조건 충족 시 `{"decision":"block","reason":"…"}` JSON을 stdout에 출력, 그 외엔 무출력. 항상 exit 0. env `MEMORY_TICK_MARKER`로 마커 경로 오버라이드 가능(테스트용).
 
-- [ ] **Step 1: 실패하는 테스트 작성**
+- [x] **Step 1: 실패하는 테스트 작성**
 
 ```bash
 mkdir -p /Users/max/00_Projects/95_personal-memory/skills/memory-tick
@@ -282,12 +282,16 @@ echo "PASS: stop-hook-throttle"
 chmod +x skills/memory-tick/test_hooks.sh
 ```
 
-- [ ] **Step 2: 테스트가 실패하는지 확인**
+결과: 테스트 파일 생성 완료.
+
+- [x] **Step 2: 테스트가 실패하는지 확인**
 
 Run: `skills/memory-tick/test_hooks.sh`
 Expected: FAIL (stop-hook-throttle.sh 없음 — "No such file" 에러)
 
-- [ ] **Step 3: 구현**
+결과: 예상대로 실패 — `skills/memory-tick/test_hooks.sh: line 12: /Users/max/00_Projects/95_personal-memory/skills/memory-tick/stop-hook-throttle.sh: No such file or directory FAIL: 첫 실행은 block을 출력해야 함`
+
+- [x] **Step 3: 구현**
 
 `skills/memory-tick/stop-hook-throttle.sh`:
 
@@ -325,18 +329,24 @@ exit 0
 chmod +x skills/memory-tick/stop-hook-throttle.sh
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+결과: 구현 파일 생성 완료.
+
+- [x] **Step 4: 테스트 통과 확인**
 
 Run: `skills/memory-tick/test_hooks.sh`
 Expected: `PASS: stop-hook-throttle`
 
-- [ ] **Step 5: 커밋**
+결과: 예상대로 통과 — `PASS: stop-hook-throttle`
+
+- [x] **Step 5: 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
 git add skills/memory-tick/
 git commit -m "feat: memory-tick Stop hook 스로틀 스크립트 (30분, fail-open)"
 ```
+
+결과: 예정됨 (아래 참고)
 
 ---
 
