@@ -176,6 +176,8 @@ git add -A && git commit -m "chore: 초기 인제스트 완료 — 세션 수/�
 
 **이슈 (후속 조치 권고, 이번 태스크 범위 밖):** kiwi-rs 네이티브 라이브러리 로드 실패 + 자동 다운로드도 실패(`kiwi_mac_arm64_v0.23.2` 릴리스 에셋 없음)로 매 ingest/recall 호출 시 lindera로 폴백. 한글 검색 기능 자체는 lindera로도 정상 동작했지만, Task 1에서 명시적으로 `tokenizer=kiwi`로 설정한 의도와 실제 런타임이 불일치. `KIWI_LIBRARY_PATH` 수동 설정 또는 secall 버전 확인이 필요해 보임 — Task 8 왕복 검증 또는 별도 후속 작업에서 다룰 것을 제안.
 
+**후속 수정 (kiwi 토크나이저 실제 동작화, 상세는 `.superpowers/sdd/task-2-report.md`의 "Fix: kiwi tokenizer" 참고):** 원인은 두 가지 독립된 upstream 버그 — (1) secall v0.7.0이 핀한 libkiwi v0.23.2는 kiwi-rs 0.1.4 바인딩의 init 경로에서 SIGSEGV(upstream이 이미 v0.22.2로 재핀했으나 v0.7.0 릴리스에는 미반영), (2) secall의 release-asset 자동 다운로더 자체에 파싱 버그가 있어 어떤 태그든 다운로드 실패. bab2min/Kiwi 릴리스에서 **v0.22.2**(안전 버전) dylib+model을 직접 받아 `~/.local/share/secall/kiwi/`에 배치하고 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH` 환경변수로 지정하여 우회 — kiwi-fallback 경고 사라짐, `secall recall` 정상 동작 확인. 단, `secall reindex`는 이미 turns가 있는 기존 216개 세션을 재토큰화하지 않는다(소스 코드 확인: zero-turn 세션만 healing 대상) — 기존 세션의 FTS 인덱스는 Task 2 인제스트 당시의 lindera 토큰을 그대로 유지하며, 완전한 재토큰화는 `--force` 재인제스트(FTS5 중복 버그 #23 있음, 이번 범위에서 미실행)가 필요. **환경변수는 아직 `~/.zshrc`에 영속화되지 않음**(harness 권한 정책상 자동 편집 차단) — 사용자가 직접 추가하거나, Task 3/4/5/7에서 MCP·hook·launchd가 secall을 실행하는 각 환경에 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`를 명시적으로 전달해야 함.
+
 ---
 
 ### Task 3: MCP 등록

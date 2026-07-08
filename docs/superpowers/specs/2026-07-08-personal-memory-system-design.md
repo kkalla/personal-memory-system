@@ -53,7 +53,7 @@ Claude Code와 나눈 대화(현재 526개 세션, 289MB JSONL)를 잃어버리�
 - 설치: 공식 `install.sh` (macOS prebuilt 바이너리)
 - `secall init` 설정값:
   - 볼트: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/96_memory`
-  - 토크나이저: **kiwi** (한국어 대화 비중 높음)
+  - 토크나이저: **kiwi** (한국어 대화 비중 높음) — [Task 2 후속] 설치된 secall v0.7.0의 kiwi 자동 다운로드는 upstream 버그(잘못된 libkiwi 버전 핀 + asset 파서 버그)로 실패해 lindera로 폴백했었음. libkiwi v0.22.2 dylib+model을 `~/.local/share/secall/kiwi/`에 수동 배치하고 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH` 환경변수로 지정해 실제 kiwi 로딩 확인, 한국어 검색 정상 동작 확인(`.superpowers/sdd/task-2-report.md` "Fix: kiwi tokenizer" 참고). 기존 인제스트된 세션의 FTS 인덱스는 재토큰화되지 않았고(reindex는 zero-turn 세션만 healing), 환경변수도 아직 셸 프로필에 영속화되지 않아 MCP/hook/launchd 실행 환경마다 별도 전달 필요.
   - 임베딩 백엔드: **none** — BM25만으로 시작. 자기 대화 검색은 키워드를 기억하는 경우가 대부분이라 BM25로 충분. 검색 품질이 아쉬우면 `ort`(ONNX 내장 bge-m3) 백엔드로 전환 후 `secall reindex`
   - git remote: 사용 안 함 (동기화는 iCloud)
 - 초기 인제스트: `secall ingest --auto` → 526개 세션
