@@ -42,13 +42,13 @@
 **Interfaces:**
 - Produces: `secall` CLI (PATH 상), 볼트 디렉토리 `…/Obsidian/96_memory/` (raw/, wiki/, log/ 구조)
 
-- [ ] **Step 1: 설치**
+- [x] **Step 1: 설치**
 
 ```bash
 curl -fsSL https://raw.githubusercontent.com/hang-in/seCall/main/install.sh | sh
 ```
 
-- [ ] **Step 2: 설치 확인**
+- [x] **Step 2: 설치 확인**
 
 ```bash
 which secall && secall --version
@@ -56,7 +56,9 @@ which secall && secall --version
 
 Expected: 바이너리 경로와 버전 출력. `which` 실패 시 셸 재로그인 또는 install.sh가 안내한 PATH 추가 후 재시도.
 
-- [ ] **Step 3: init 옵션 확인**
+결과: `/Users/max/.local/bin/secall`, `secall 0.7.0`.
+
+- [x] **Step 3: init 옵션 확인**
 
 ```bash
 secall init --help
@@ -64,7 +66,9 @@ secall init --help
 
 Expected: `--vault` 플래그 확인. 토크나이저/임베딩을 플래그로 받는지 확인 (비대화형 우선).
 
-- [ ] **Step 4: init 실행**
+결과: `--vault`/`-v`, `--git`, `--format`만 존재. 토크나이저/임베딩 플래그 없음 → init 후 `secall config set`으로 보정 필요.
+
+- [x] **Step 4: init 실행**
 
 ```bash
 secall init --vault "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/96_memory"
@@ -73,13 +77,15 @@ secall init --vault "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Docu
 대화형 프롬프트가 뜨면: 토크나이저 `kiwi`, 임베딩 백엔드 `none`, git remote 없음 선택. 플래그로 안 되고 프롬프트도 없으면 init 후 다음으로 보정:
 
 ```bash
-secall config set tokenizer kiwi
+secall config set search.tokenizer kiwi
 secall config set embedding.backend none
 ```
 
 (정확한 config 키 이름은 `secall config --help` 출력을 따른다)
 
-- [ ] **Step 5: 볼트 생성 확인**
+결과: init은 비대화형으로 즉시 완료(프롬프트 없음, 기본값 tokenizer=lindera, embedding.backend=ollama로 생성). `secall config set search.tokenizer kiwi`, `secall config set embedding.backend none` 실행하여 보정 완료 (`secall config show`로 확인: tokenizer=kiwi, embedding.backend=none, git_remote=(not set)).
+
+- [x] **Step 5: 볼트 생성 확인**
 
 ```bash
 ls -la "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/96_memory"
@@ -87,7 +93,9 @@ ls -la "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidia
 
 Expected: seCall 볼트 구조(raw/ 또는 .sessions, wiki/, log/ 등) 생성됨.
 
-- [ ] **Step 6: 커밋 (plan 체크박스 갱신)**
+결과: `raw/.sessions/`, `wiki/{projects,topics,decisions,overview.md}`, `index.md`, `log.md`, `SCHEMA.md` 생성 확인. `secall status`: Sessions 0, Embedded 0 (예상대로, ingest는 Task 2). `secall lint`: 0 errors, 1 warning(overview.md sources 누락, 무해).
+
+- [x] **Step 6: 커밋 (plan 체크박스 갱신)**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
