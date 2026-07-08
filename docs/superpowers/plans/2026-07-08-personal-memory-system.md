@@ -113,7 +113,7 @@ git add -A && git commit -m "chore: seCall 설치 및 96_memory 볼트 init 완�
 - Consumes: Task 1의 `secall` CLI, init된 볼트
 - Produces: 526개 세션이 인제스트된 검색 가능한 볼트
 
-- [ ] **Step 1: 소스 세션 수 기록**
+- [x] **Step 1: 소스 세션 수 기록**
 
 ```bash
 find ~/.claude/projects -name "*.jsonl" | wc -l
@@ -121,7 +121,9 @@ find ~/.claude/projects -name "*.jsonl" | wc -l
 
 Expected: 526 근처 (이후 검증 기준값).
 
-- [ ] **Step 2: 인제스트**
+결과: 531개. 단, 이 수치는 `subagents/` 하위에 중첩된 서브에이전트 세션 파일(depth 9/11, 총 303개)을 포함한 값. 최상위(depth 7) 세션 파일만 세면 228개 — 이게 `secall ingest --auto`가 실제로 스캔하는 후보 모수임 (Step 3 결과 참고).
+
+- [x] **Step 2: 인제스트**
 
 ```bash
 secall ingest --auto
@@ -129,7 +131,9 @@ secall ingest --auto
 
 Expected: Claude Code 세션 자동 감지 및 인제스트 진행 로그. 수 분 소요 가능.
 
-- [ ] **Step 3: 세션 수 검증**
+결과: 완료 (약 2분 소요, 타임아웃 없음). `216 ingested, 24 skipped (duplicate), 6 errors`. 에이전트별: claude-code 202, codex 5, gemini-cli 9 (— `--auto`는 Claude Code 전용이 아니라 `~/.claude/projects` 외에 `~/.gemini/tmp` 등 다른 에이전트 세션 디렉터리도 함께 스캔함, 스펙 범위상 문제 없음). 에러 6건 중 2건은 `~/.claude/projects`의 "no parseable turns"(빈/손상 세션), 4건은 `~/.gemini/tmp` 세션. ⚠️ 런타임 경고: `kiwi-rs failed, falling back to lindera` — `KIWI_LIBRARY_PATH` 미설정 + 자동 다운로드도 실패(`release asset not found for current tag: kiwi_mac_arm64_v0.23.2.tgz`)로 config상 tokenizer=kiwi이지만 실제로는 lindera로 폴백 중. Step 4에서 한글 검색 기능 자체는 정상 동작 확인했으나, Task 1에서 설정한 kiwi가 실제로 적용되지 않고 있다는 점은 후속 조치 필요 (아래 "이슈" 참고).
+
+- [x] **Step 3: 세션 수 검증**
 
 ```bash
 secall status
@@ -137,7 +141,9 @@ secall status
 
 Expected: 인제스트된 세션 수가 Step 1 값 근처 (서브에이전트/빈 세션 제외로 다소 적을 수 있음 — 절반 이하로 크게 다르면 원인 조사).
 
-- [ ] **Step 4: 검색 스모크 테스트**
+결과: Sessions 216, Turns 31897, Embedded 0(예상대로 — embedding.backend=none), Vault Files 216. 216은 Step 1의 raw 531 대비 절반 이하라 원인 조사 수행: raw 531 중 303개는 `subagents/` 하위 세션(서브에이전트, 예상대로 제외 대상)이고, 최상위 세션은 228개. 228개 중 202개 claude-code로 정상 인제스트 + 2개 파싱 에러 + 24개 중복 스킵 = 228 정확히 일치. 즉 실질 모수(228) 대비 인제스트율은 ~95%로 정상. Step 1의 "526 근처" 기준값은 서브에이전트 중첩 파일을 감안하지 않은 수치였던 것으로 판단.
+
+- [x] **Step 4: 검색 스모크 테스트**
 
 ```bash
 secall recall "메모리 시스템"
@@ -146,7 +152,9 @@ secall recall "seCall"
 
 Expected: 이 프로젝트 세션 포함, 관련 세션·턴이 결과로 나옴. 한글 키워드가 안 나오면 kiwi 토크나이저 설정 재확인.
 
-- [ ] **Step 5: 정합성 + 용량 실측**
+결과: 두 쿼리 모두 정상 동작. "메모리 시스템" → 10건, 1위가 이 프로젝트(00_Projects) 세션(`d2445a81`, `9b2b4509`, score 1.00, "개인 메모리 시스템 구축" 매치). "seCall" → 2건, 모두 이 프로젝트 세션(`9b2b4509`, "secall 볼트 obsidian memory..." 매치). 한글 키워드 정상 인식 확인 — 단, 위 kiwi→lindera 폴백 경고가 매 호출마다 출력됨. lindera로도 형태소 분석 자체는 동작하고 있어 기능적으로 스모크 테스트는 통과하나, 설정된 토크나이저가 아닌 폴백 엔진으로 동작 중이라는 점은 기록.
+
+- [x] **Step 5: 정합성 + 용량 실측**
 
 ```bash
 secall lint
@@ -155,12 +163,18 @@ du -sh "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidia
 
 Expected: lint 통과. 용량 수치 기록 (스펙 검증 항목 7 — iCloud 부하 판단 근거).
 
-- [ ] **Step 6: 커밋**
+결과: lint 통과 — `216 sessions, 0 errors, 1 warnings, 432 info`. 유일한 warning은 Task 1 때부터 있던 `wiki/overview.md`의 `sources` frontmatter 누락(무해, 위키 작업은 이후 태스크). info 432건은 전부 `no vector embeddings`(embedding=none 설정에 따른 예상된 결과) + `session not referenced in any wiki page`(위키 미생성 상태의 예상된 결과). 용량: 볼트 전체 `17M` (raw/ 세션 마크다운 17M, wiki/ 4.0K, index.md 36K, log.md 40K, SCHEMA.md 4.0K). 참고로 로컬 SQLite 인덱스(`~/Library/Caches/secall/index.sqlite`, iCloud 동기화 대상 아님)는 24M. 세션 216개/턴 31897개 기준 볼트 17M → iCloud 동기화 부하는 낮은 수준으로 판단.
+
+- [x] **Step 6: 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
 git add -A && git commit -m "chore: 초기 인제스트 완료 — 세션 수/용량 실측 기록"
 ```
+
+결과: 커밋 완료 (plan 문서 체크박스 갱신만 대상 — 볼트 데이터는 `/Users/max/00_Projects/95_personal-memory` 밖의 iCloud 경로에 있어 이 저장소 커밋에 포함되지 않음).
+
+**이슈 (후속 조치 권고, 이번 태스크 범위 밖):** kiwi-rs 네이티브 라이브러리 로드 실패 + 자동 다운로드도 실패(`kiwi_mac_arm64_v0.23.2` 릴리스 에셋 없음)로 매 ingest/recall 호출 시 lindera로 폴백. 한글 검색 기능 자체는 lindera로도 정상 동작했지만, Task 1에서 명시적으로 `tokenizer=kiwi`로 설정한 의도와 실제 런타임이 불일치. `KIWI_LIBRARY_PATH` 수동 설정 또는 secall 버전 확인이 필요해 보임 — Task 8 왕복 검증 또는 별도 후속 작업에서 다룰 것을 제안.
 
 ---
 
