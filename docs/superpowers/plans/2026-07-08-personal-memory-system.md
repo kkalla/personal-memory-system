@@ -655,7 +655,7 @@ git commit -m "feat: launchd 일일 secall sync (09:00)"
 **Interfaces:**
 - Consumes: 앞선 모든 태스크
 
-- [ ] **Step 1: 스펙 검증 항목 실행** (spec의 "검증 계획" 1~7)
+- [x] **Step 1: 스펙 검증 항목 실행** (spec의 "검증 계획" 1~7)
 
 ```bash
 # 6) 볼트 동거: 자작 memory/ 폴더가 seCall과 안 싸우는지
@@ -666,14 +666,18 @@ du -sh "/Users/max/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidia
 
 Expected: lint가 memory/ 폴더 때문에 실패하지 않음. 실패 시 memory/를 `…/Obsidian/95_memory`로 이동하고 두 스크립트와 SKILL.md의 경로 상수만 수정.
 
-- [ ] **Step 2: memory-tick 왕복 테스트 (수동)**
+결과: `secall lint` → `216 sessions, 0 errors, 1 warnings, 432 info` — 유일한 warning은 Task 1 때부터 있던 `wiki/overview.md`의 `sources` frontmatter 누락(memory/ 폴더와 무관, 무해) → 이동 불필요. `du -sh` → `17M`(Task 2 초기 인제스트 실측치와 동일, memory/wiki 파일 추가에도 용량 변화 없음).
+
+- [x] **Step 2: memory-tick 왕복 테스트** (인터랙티브 세션이 불가한 환경이라 헤드리스로 대체)
 
 새 Claude Code 세션을 열고:
 1. "이거 기억해: 테스트용 메모리 항목이야" 라고 요청 → `96_memory/memory/`에 파일 생성 + MEMORY.md 갱신 확인
 2. 세션 종료 후 또 새 세션 시작 → 시작 컨텍스트에 `[personal-memory]` 인덱스가 주입됐는지 확인
 3. MCP 확인: 새 세션에서 secall recall 툴 호출이 되는지
 
-- [ ] **Step 3: fail-open 확인**
+결과: (1) 쓰기 절반은 이 계획을 실제로 빌드하는 과정에서 Stop hook이 라이브로 발화해 이미 증명됨 — `96_memory/memory/`에 `project_personal-memory-system.md`, `feedback_launchd-icloud-tcc.md` 2건 + `MEMORY.md` 인덱스가 생성돼 있음(별도 테스트 노트로 오염시키지 않음). (2) 주입 절반은 `claude -p --model haiku "시스템 컨텍스트에 [personal-memory] 인덱스가 보이면 그 안의 항목 이름들만 그대로 나열해줘..."`로 헤드리스 세션에서 SessionStart hook을 발화시켜 확인 — 출력이 정확히 두 항목명(`personal-memory-system`, `launchd-icloud-tcc`)을 나열, 정상 주입 확인. (3) MCP 확인은 `claude mcp list` → `secall: secall mcp - ✔ Connected`로 충분 확인(브리핑 조정에 따라 실제 recall 툴 호출로 토큰을 쓰지 않음) — **단, 인터랙티브 세션에서의 실제 recall 호출은 사용자 확인 대기로 남김**.
+
+- [x] **Step 3: fail-open 확인**
 
 ```bash
 chmod -x /Users/max/00_Projects/95_personal-memory/skills/memory-tick/stop-hook-throttle.sh
@@ -685,7 +689,9 @@ chmod -x /Users/max/00_Projects/95_personal-memory/skills/memory-tick/stop-hook-
 chmod +x /Users/max/00_Projects/95_personal-memory/skills/memory-tick/stop-hook-throttle.sh
 ```
 
-- [ ] **Step 4: 위키 생성 1회 수동 실행 + 품질 확인**
+결과: 브리핑 조정에 따라 두 hook 스크립트(`stop-hook-throttle.sh`, `session-start-memory.sh`) 모두 `chmod -x` 후 `claude -p --model haiku "1+1은?"` 헤드리스 세션 실행 → 정상 완료("2야."), hook 실행 실패가 세션을 막지 않음 확인. 이후 두 스크립트 `chmod +x`로 원복, `skills/memory-tick/test_hooks.sh` 재실행 → `PASS: stop-hook-throttle`, `PASS: session-start-memory` 둘 다 확인.
+
+- [x] **Step 4: 위키 생성 1회 수동 실행 + 품질 확인**
 
 ```bash
 secall wiki update --backend claude --session <아무 세션 id 하나>
@@ -693,7 +699,9 @@ secall wiki update --backend claude --session <아무 세션 id 하나>
 
 Expected: `96_memory/wiki/`에 문서 생성. 품질 보고 전체 실행(`secall wiki update`) 여부는 사용자가 결정.
 
-- [ ] **Step 5: README 작성**
+결과: `secall wiki update --backend claude --session f766b3b3-4fb9-498a-a05b-7d4f8430edf4` (최근 세션 중 스텁성 2~3턴짜리와 이 태스크 자신의 진행 중 세션을 제외한, 가장 최근의 완결된 실질 세션 196턴) 실행 → 성공. `wiki/projects/assetnest.md`, `wiki/topics/openrouter-hy3-reasoning.md`, `wiki/decisions/2026-07-08-trading-agents-week0-spike.md` 3개 생성 + `overview.md` 링크 자동 갱신. 품질: frontmatter(sources/tags) 포함, 구체적 수치·코드 인용, 상호 링크까지 갖춰 고품질로 판단. 부수 발견(보안): 위키 생성 에이전트가 원본 세션에 평문 자격증명이 있었으나 위키로는 옮기지 않았다고 자체 보고 — `grep`으로 직접 확인 시도했으나 Claude Code auto-mode가 "Credential Materialization"으로 차단, 즉 `raw/.sessions/`(iCloud 동기화 대상 불변 아카이브)에 평문 API 키·DB 비밀번호가 실제로 존재함이 간접 확인됨. 스펙의 iCloud 트레이드오프 논의는 용량/트래픽만 다뤘고 자격증명 노출은 미검토 항목이었음 — 후속 조치 후보로 사용자 보고 (자세한 내용: task-8-report.md).
+
+- [x] **Step 5: README 작성**
 
 `README.md`:
 
@@ -721,9 +729,13 @@ Expected: `96_memory/wiki/`에 문서 생성. 품질 보고 전체 실행(`secal
 - memory 파일은 항상 전체 쓰기, append 금지 (iCloud 충돌 방지)
 ```
 
-- [ ] **Step 6: 최종 커밋**
+결과: 브리핑 원안을 기반으로 작성했으나, Task 2~7 실측 사실을 반영해 "자주 쓰는 명령"·"주의" 섹션을 갱신 — kiwi env(`~/.zshenv` + MCP `--env`), 위키 `--backend claude` 필수(codex 기본값 깨짐), launchd FDA 요구사항 + `pkill -f "secall sync"` 복구 힌트, graph/log 백엔드 비활성 상태를 추가. 한 페이지 유지.
+
+- [x] **Step 6: 최종 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
 git add -A && git commit -m "docs: README + 검증 결과 기록"
 ```
+
+결과: `README.md`(신규) + 본 계획 문서 체크박스/결과 + 스펙 문서 검증 계획 상태 주석을 묶어 커밋. `.superpowers/sdd/task-8-report.md`는 `.superpowers/sdd/.gitignore`(`*`)로 저장소에서 의도적으로 제외되는 디렉터리라 커밋 대상에 포함되지 않음(이전 태스크들과 동일한 패턴).

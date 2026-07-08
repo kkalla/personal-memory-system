@@ -88,13 +88,15 @@ Claude Code와 나눈 대화(현재 526개 세션, 289MB JSONL)를 잃어버리�
 
 ## 검증 계획
 
-1. 인제스트 후 `secall recall` 스모크 테스트 — 기억나는 과거 작업 2~3개 검색해서 실제로 나오는지
-2. 세션 수가 소스 JSONL 수(526 근처)와 맞는지
-3. 새 Claude Code 세션에서 MCP recall 툴이 보이고 동작하는지
-4. memory-tick 왕복: 테스트 인사이트 저장 → 새 세션에서 자동 주입 확인
-5. hook fail-open: 스크립트를 일부러 깨뜨려도 세션이 정상 진행되는지
-6. **볼트 동거 확인**: 자작 `memory/` 폴더가 seCall `lint`/`reindex`에서 문제를 일으키지 않는지 (문제 시 memory 폴더를 `96_memory` 밖 `95_memory` 등 형제 폴더로 이동 — 스킬의 경로 상수만 변경)
-7. **iCloud 부하 확인**: 초기 인제스트 후 `96_memory` 실측 용량 확인, 폰 Obsidian 열어서 체감 확인
+상태 범례: ✅ 검증 완료 / 사용자 확인 대기 = 코드·설정으로는 완결, 사람 개입(인터랙티브 세션, 폰 체감)만 남음. 전체 근거는 `.superpowers/sdd/task-8-report.md` 참고.
+
+1. ✅ 인제스트 후 `secall recall` 스모크 테스트 — 기억나는 과거 작업 2~3개 검색해서 실제로 나오는지 — Task 2에서 완료 ("메모리 시스템" 10건 1위 정확 매치, "seCall" 2건 정확 매치)
+2. ✅ 세션 수가 소스 JSONL 수(526 근처)와 맞는지 — Task 2에서 완료·해명. 최상위(서브에이전트 제외) 후보 228개 대비 216 인제스트(202 claude-code + 5 codex + 9 gemini-cli), 나머지는 파스 에러 2 + 중복 24로 정확히 정합 (~95% 인제스트율)
+3. 사용자 확인 대기 — 새 Claude Code 세션에서 MCP recall 툴이 보이고 동작하는지. 자동 확인 가능한 부분(`claude mcp list` → `secall ✔ Connected`, config에 KIWI env 반영)은 Task 3·Task 8에서 반복 확인 완료. 다만 **인터랙티브 세션에서 실제 recall 툴 호출**은 본 태스크가 헤드리스로 대체 실행하는 범위 밖 — 사용자가 새 세션에서 직접 호출해 확인 필요
+4. ✅ memory-tick 왕복: 테스트 인사이트 저장 → 새 세션에서 자동 주입 확인 — 저장(쓰기) 절반은 실제 빌드 과정 중 Stop hook이 라이브로 발화해 `96_memory/memory/`에 노트 2건 + `MEMORY.md` 생성됨(별도 테스트 노트 조작 불필요). 주입(읽기) 절반은 Task 8에서 헤드리스 세션(`claude -p`)으로 확인 — SessionStart hook이 정상 발화해 `[personal-memory]` 인덱스의 두 항목명(`personal-memory-system`, `launchd-icloud-tcc`)이 그대로 주입됨
+5. ✅ hook fail-open: 스크립트를 일부러 깨뜨려도 세션이 정상 진행되는지 — Task 8에서 두 hook 스크립트 모두 `chmod -x` 후 헤드리스 세션이 정상 완료됨을 확인, 권한 복구 후 `test_hooks.sh` PASS/PASS 재확인
+6. ✅ **볼트 동거 확인**: 자작 `memory/` 폴더가 seCall `lint`/`reindex`에서 문제를 일으키지 않는지 — Task 8에서 `secall lint` 재실행, `0 errors, 1 warnings`(warning은 기존 `wiki/overview.md`의 `sources` frontmatter 누락 건으로 memory/ 폴더와 무관) — 이동 불필요
+7. `96_memory` 실측 용량 재확인은 ✅(Task 8: 17M, Task 2 초기 인제스트 이후 변화 없음 — memory/wiki 파일들은 용량에 유의미한 영향 없음), 폰 Obsidian 체감 확인은 사용자 확인 대기
 
 ## 명시적으로 뺀 것 (YAGNI)
 

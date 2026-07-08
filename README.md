@@ -1,0 +1,30 @@
+# personal-memory
+
+개인 AI 메모리 시스템. 스펙: `docs/superpowers/specs/`, 계획: `docs/superpowers/plans/`, 검증 기록: `.superpowers/sdd/task-8-report.md`
+
+## 구성
+
+- **seCall** (v0.7.0) — Claude Code 세션 아카이브·검색·위키. 볼트: iCloud Obsidian vault `96_memory/` (경로에 공백 있음 — 항상 인용)
+- **memory-tick** (`skills/memory-tick/`) — Stop hook 30분 스로틀로 인사이트 자동 저장, SessionStart hook으로 인덱스 주입. `~/.claude/skills/memory-tick`은 여기로 symlink
+- **launchd** — 매일 09:00 `secall sync` (`launchd/com.max.secall-sync.plist`)
+
+## 자주 쓰는 명령
+
+- 검색: `secall recall "키워드"` (토크나이저 kiwi, 임베딩 없음 — BM25만)
+- 벡터 검색 켜기: config에서 `embedding.backend`를 `ort`로 바꾸고 `secall reindex`
+- 위키 갱신: `secall wiki update --backend claude --session <id>` — **`--backend` 필수 명시**. config 기본값(`codex`)은 모델 에러로 깨져있음(Task 8 실측). 세션 전체 일괄 갱신(`secall wiki update`, backend 없이)은 토큰을 많이 쓰므로 품질 확인 후 수동 판단
+- 정합성: `secall lint` (memory/ 서브폴더와 공존 확인됨, 0 errors)
+- DB 복구: `secall reindex --from-vault` (볼트=원본, DB=로컬 파생 캐시)
+- hook 셀프테스트: `skills/memory-tick/test_hooks.sh`
+- kiwi 토크나이저 env: `~/.zshenv`에 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH` 영속화됨 (config.toml엔 해당 키 없음). MCP 서버는 `claude mcp add`가 zshenv를 거치지 않으므로 등록 시 `--env`로 동일하게 전달했음 — 이미 완료, 재등록 시에만 신경 쓰면 됨
+- MCP 상태 확인: `claude mcp list` → `secall: secall mcp - ✔ Connected`
+
+## 주의
+
+- seCall git sync 사용 금지 — 동기화는 iCloud가 담당 (둘 다 켜면 충돌)
+- memory 파일은 항상 전체 쓰기, append 금지 (iCloud 충돌 방지)
+- **launchd FDA 필요**: `~/.local/bin/secall`에 macOS 전체 디스크 접근 권한(시스템 설정 > 개인정보 보호 및 보안)을 등록하기 전까지, launchd가 새벽 09:00에 띄우는 `secall sync`는 iCloud(TCC) 접근에서 행(hang)한다. 증상: `/tmp/secall-sync.err`가 "Reindexing vault..." 이후 조용함. 복구: `pkill -f "secall sync"` 한 번. FDA 등록 후에는 재발하지 않음 (자세한 내용: `.superpowers/sdd/task-7-report.md`)
+- 위키(`wiki update`)는 `--backend claude`로 명시 실행 — codex 백엔드는 기본값이지만 모델 에러로 깨져 있음
+- graph(지식 그래프)·log(작업일기 폴더) 백엔드는 비활성/미사용 상태 — config.toml `[graph] semantic_backend = "disabled"`, 실제 작업 기록은 볼트 최상위 `log.md` 플랫 파일로 seCall이 자동 생성함 (스펙 초안의 `log/` 폴더 구조와 다름, 문제 없음)
+- 토크나이저는 kiwi로 설정되어 있으나 기존 216세션 인덱스는 upstream 버그로 인한 재구축 리스크(git_branch 유실) 때문에 lindera 톤화 상태로 남아있음 — 신규 질의는 kiwi, 기존 인덱스는 lindera 혼용. 기능엔 지장 없음 (자세한 내용: `.superpowers/sdd/task-2-report.md`)
+- **자격증명 노출 주의**: `raw/.sessions/`(불변 원본 아카이브, iCloud 동기화 대상)에는 과거 세션에서 `.env`를 grep/cat한 내용이 그대로 보존된다. 실제로 평문 API 키·DB 비밀번호가 담긴 세션이 존재함을 Task 8에서 확인(Claude Code auto-mode가 해당 내용 grep 자체를 "Credential Materialization"으로 차단해 간접 확인). 위키 생성은 이런 값을 옮기지 않지만, raw 세션 파일을 외부 공유·별도 백업할 때는 별도 점검 필요 (자세한 내용: `.superpowers/sdd/task-8-report.md`)
