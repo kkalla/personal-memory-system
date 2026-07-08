@@ -360,7 +360,7 @@ git commit -m "feat: memory-tick Stop hook 스로틀 스크립트 (30분, fail-o
 - Consumes: `96_memory/memory/MEMORY.md` (없어도 동작 — 무출력)
 - Produces: SessionStart hook 커맨드. MEMORY.md가 있으면 라벨 한 줄 + 파일 내용을 stdout으로 출력(→ Claude Code가 세션 컨텍스트에 추가), 없으면 무출력. 항상 exit 0. env `MEMORY_TICK_INDEX`로 인덱스 경로 오버라이드 가능(테스트용).
 
-- [ ] **Step 1: 실패하는 테스트 추가**
+- [x] **Step 1: 실패하는 테스트 추가**
 
 `skills/memory-tick/test_hooks.sh`의 마지막 `echo "PASS: stop-hook-throttle"` 뒤에 추가:
 
@@ -385,12 +385,12 @@ rm -rf "$tmpdir2"
 echo "PASS: session-start-memory"
 ```
 
-- [ ] **Step 2: 테스트가 실패하는지 확인**
+- [x] **Step 2: 테스트가 실패하는지 확인**
 
 Run: `skills/memory-tick/test_hooks.sh`
 Expected: throttle은 PASS, session-start에서 FAIL ("No such file")
 
-- [ ] **Step 3: 구현**
+- [x] **Step 3: 구현**
 
 `skills/memory-tick/session-start-memory.sh`:
 
@@ -411,12 +411,12 @@ exit 0
 chmod +x skills/memory-tick/session-start-memory.sh
 ```
 
-- [ ] **Step 4: 테스트 통과 확인**
+- [x] **Step 4: 테스트 통과 확인**
 
 Run: `skills/memory-tick/test_hooks.sh`
 Expected: `PASS: stop-hook-throttle` 와 `PASS: session-start-memory` 둘 다 출력
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
