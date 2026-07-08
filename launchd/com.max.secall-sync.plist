@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.max.secall-sync</string>
+  <!--
+    secall을 zsh -lc 래퍼 없이 직접 실행한다.
+    이유: launchd가 띄운 잡의 TCC(개인정보 보호) 권한은 실행 바이너리 기준으로
+    귀속되므로, /bin/zsh 래퍼를 쓰면 iCloud Drive(vault) 접근 권한을 zsh에
+    줘야 하는 문제가 생긴다. secall 직접 실행 + 시스템 설정 > 개인정보 보호 및
+    보안 > 전체 디스크 접근 권한에 ~/.local/bin/secall 1회 등록으로 해결.
+    (등록 전에는 vault 접근이 "Operation not permitted"로 막힌다 — task-7-report.md 참고)
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/max/.local/bin/secall</string>
+    <string>sync</string>
+  </array>
+  <!-- ~/.zshenv를 거치지 않으므로 kiwi 토크나이저 env를 여기서 직접 지정 -->
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>KIWI_LIBRARY_PATH</key><string>/Users/max/.local/share/secall/kiwi/libkiwi.dylib</string>
+    <key>KIWI_MODEL_PATH</key><string>/Users/max/.local/share/secall/kiwi/model/models/cong/base</string>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/max/.local/bin</string>
+  </dict>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>0</integer></dict>
+  <key>StandardOutPath</key><string>/tmp/secall-sync.log</string>
+  <key>StandardErrorPath</key><string>/tmp/secall-sync.err</string>
+</dict>
+</plist>

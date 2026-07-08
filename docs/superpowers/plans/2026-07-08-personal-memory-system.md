@@ -585,7 +585,7 @@ git commit -m "feat: memory-tick SKILL.md + hooks 등록"
 - Consumes: Task 1의 `secall` CLI
 - Produces: 매일 09:00 `secall sync` 자동 실행
 
-- [ ] **Step 1: plist 작성**
+- [x] **Step 1: plist 작성**
 
 `launchd/com.max.secall-sync.plist`:
 
@@ -611,7 +611,9 @@ git commit -m "feat: memory-tick SKILL.md + hooks 등록"
 
 `/bin/zsh -lc` 사용 이유: 로그인 셸 PATH를 태워 secall 설치 경로에 의존하지 않기 위함.
 
-- [ ] **Step 2: 설치 + 로드**
+결과: 위 스펙대로 작성했으나 kickstart 검증에서 두 가지 문제가 드러나 **최종 plist는 스펙과 다르다** (상세는 task-7-report.md). (1) `zsh -lc`는 비대화형 로그인 셸이라 `~/.zshrc`를 읽지 않아 `secall`이 PATH에 없음(`command not found`) → 절대경로로 교체. (2) launchd가 띄운 잡의 TCC 권한은 실행 바이너리(zsh)에 귀속되므로 iCloud vault 접근이 차단됨 → zsh 래퍼 제거, `secall sync` 직접 실행 + `EnvironmentVariables`로 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`/`PATH`(git·codex용) 직접 지정. `plutil -lint` OK.
+
+- [x] **Step 2: 설치 + 로드**
 
 ```bash
 cp /Users/max/00_Projects/95_personal-memory/launchd/com.max.secall-sync.plist ~/Library/LaunchAgents/
@@ -620,7 +622,9 @@ launchctl bootstrap gui/$(id -u) ~/Library/LaunchAgents/com.max.secall-sync.plis
 
 Expected: 에러 없음. 이미 로드돼 있다는 에러면 `launchctl bootout gui/$(id -u)/com.max.secall-sync` 후 재시도.
 
-- [ ] **Step 3: 즉시 실행으로 동작 확인**
+결과: bootstrap 에러 없이 성공(stale job 없었음, 수정 재설치 시에는 bootout 후 재로드). `launchctl print gui/501/com.max.secall-sync`로 로드 상태 + `StartCalendarInterval Hour=9 Minute=0` calendarinterval 트리거 등록 확인.
+
+- [x] **Step 3: 즉시 실행으로 동작 확인**
 
 ```bash
 launchctl kickstart gui/$(id -u)/com.max.secall-sync
@@ -629,13 +633,17 @@ sleep 10 && tail -5 /tmp/secall-sync.log /tmp/secall-sync.err
 
 Expected: sync 실행 로그, 에러 없음.
 
-- [ ] **Step 4: 커밋**
+결과: kickstart 자체는 성공하나 **launchd 컨텍스트에서는 macOS TCC가 iCloud Drive(vault) 접근을 차단**해 sync가 vault opendir에서 무기한 블록됨(진짜 행 근본 원인 — 테스트 잡의 `ls`는 즉시 "Operation not permitted", secall은 CPU ~0으로 43분+ 행). 진단 과정에서 ollama_cloud 오설정도 발견·수정: `graph.semantic_backend=ollama_cloud` + `log.backend=ollama_cloud`인데 `OLLAMA_CLOUD_API_KEY` 미설정 → `graph.semantic_backend=disabled`(공식 off 값)로 변경, `log.backend` 키 제거(config 백업: `config.toml.bak-task7`; tokenizer/embedding/vault 설정은 미변경). plist와 동일한 커맨드+env를 터미널 컨텍스트(TCC 허용)에서 실행한 시뮬레이션은 **~30초 만에 "Sync complete." exit 0** — kiwi 정상(lindera fallback 없음), 216 sessions/31,897 turns(claude-code 202/codex 5/gemini-cli 9, Task 2와 동일), `secall lint` 0 errors. **사용자 1회 조치 필요**: 시스템 설정 → 개인정보 보호 및 보안 → 전체 디스크 접근 권한에 `~/.local/bin/secall` 추가 후 `launchctl kickstart gui/501/com.max.secall-sync`로 최종 확인. 부수 발견: wiki codex 백엔드가 기본 모델 `gpt-5.4`로 호출돼 ChatGPT 계정에서 400 에러(비치명·즉시 실패, sync는 계속 진행) — 후속 조치 대상.
+
+- [x] **Step 4: 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
 git add launchd/
 git commit -m "feat: launchd 일일 secall sync (09:00)"
 ```
+
+결과: `launchd/` + 본 계획 문서 갱신 + task-7-report.md를 묶어 커밋 — 메시지는 행 수정을 반영해 "feat: launchd 일일 secall sync (09:00) — ollama_cloud 행 수정 포함".
 
 ---
 
