@@ -61,7 +61,7 @@ Claude Code와 나눈 대화(현재 526개 세션, 289MB JSONL)를 잃어버리�
 
 ### 저장 (쓰기 경로)
 
-- **트리거 1**: Stop hook — 스로틀 스크립트(마지막 저장 후 일정 시간/턴 경과 시에만)가 "이번 구간에 저장 가치 있는 인사이트가 있는지 판단하라"는 컨텍스트를 주입. Claude가 판단해서 있으면 조용히 저장, 없으면 무시
+- **트리거 1**: Stop hook — 스로틀 스크립트(마지막 평가 후 30분 경과 시에만, 값은 스크립트 상수로 조정 가능)가 "이번 구간에 저장 가치 있는 인사이트가 있는지 판단하라"는 컨텍스트를 주입. Claude가 판단해서 있으면 조용히 저장, 없으면 무시
 - **트리거 2**: 사용자의 명시 요청 ("이거 기억해", "메모리 저장해줘", "remember this")
 - **저장 위치**: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/memory/` 플랫 폴더
 - **파일 형식**: `{type}_{slug}.md`, YAML frontmatter (`name`, `description`, `type: user|feedback|project|reference`, `tags`, `created`)
