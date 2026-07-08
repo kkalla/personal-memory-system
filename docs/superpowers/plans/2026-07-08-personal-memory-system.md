@@ -206,7 +206,7 @@ claude mcp add secall --scope user \
   -- secall mcp
 ```
 
-등록 전 두 경로 실존 확인(`libkiwi.dylib` 15M, `model/models/cong/base/` 하위 `cong.mdl` 76M 등 정상 존재). `secall`은 절대경로(`which secall` → `/Users/max/.local/bin/secall`) 없이 bare 이름으로도 정상 연결됨(등록 시점에 PATH가 이미 해석되어 저장되는 것으로 보임) — 별도 재등록 불필요.
+등록 전 두 경로 실존 확인(`libkiwi.dylib` 15M, `model/models/cong/base/` 하위 `cong.mdl` 76M 등 정상 존재). `secall`은 절대경로(`which secall` → `/Users/max/.local/bin/secall`) 없이 bare 이름으로도 등록 당시엔 정상 연결됨 — 다만 이는 로그인 셸 PATH에 `~/.local/bin`이 걸려 있어 spawn 시점마다 우연히 해석된 것일 뿐, 등록 시점에 PATH가 고정 저장되는 게 아니었다(최종 리뷰에서 정정: bare 이름이 `~/.claude.json`에 그대로 저장되고, 매 스폰마다 PATH를 다시 탐색함 — GUI 등 `~/.local/bin`이 PATH에 없는 컨텍스트에서는 실패). 최종 리뷰 반영으로 `/Users/max/.local/bin/secall`(절대경로)로 재등록 완료.
 
 - [x] **Step 2: 등록 확인**
 
