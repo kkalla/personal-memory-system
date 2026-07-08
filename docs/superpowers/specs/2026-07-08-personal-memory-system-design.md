@@ -11,7 +11,7 @@ Claude Code와 나눈 대화(현재 526개 세션, 289MB JSONL)를 잃어버리�
 2. **인사이트 자동 축적** — 작업 중 나온 교훈·결정·선호를 자동 감지해 저장, 다음 세션의 Claude가 더 똑똑하게 시작
 3. **위키/지식베이스** — 세션에서 추출한 정보를 프로젝트/토픽/의사결정 위키로 정리
 
-수집 소스는 **Claude Code만** (1차). Codex CLI, Gemini CLI, 웹 익스포트는 seCall이 이미 지원하므로 필요 시 켜기만 하면 됨.
+수집 소스는 **Claude Code 중심** (1차). [Task 2 후속] `secall ingest --auto`가 로컬의 Codex CLI(5개)·Gemini CLI(9개) 세션도 자동 감지해 함께 인제스트함 — 파서 공수 제로라 원래 제약의 이유(공수 절감)가 적용되지 않아 유지하기로 함(제거가 오히려 데이터 삭제). 웹 익스포트(claude.ai/ChatGPT ZIP)는 여전히 제외, 필요 시 `secall ingest <zip>`.
 
 주 소비자는 **Claude Code 자신** (MCP 검색 + 세션 시작 시 자동 주입). 사람 열람은 Obsidian(맥/폰)이 제공.
 
@@ -56,7 +56,7 @@ Claude Code와 나눈 대화(현재 526개 세션, 289MB JSONL)를 잃어버리�
   - 토크나이저: **kiwi** (한국어 대화 비중 높음) — [Task 2 후속] 설치된 secall v0.7.0의 kiwi 자동 다운로드는 upstream 버그(잘못된 libkiwi 버전 핀 + asset 파서 버그)로 실패해 lindera로 폴백했었음. libkiwi v0.22.2 dylib+model을 `~/.local/share/secall/kiwi/`에 수동 배치하고 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`를 `~/.zshenv`에 영속화(config.toml엔 해당 경로 키 없음 — 코드 확인됨)해 모든 zsh 실행 환경(로그인/비로그인/`zsh -lc`)에서 kiwi 로딩 확인. 기존 216세션 FTS 인덱스의 재토큰화는 시도 후 보류: v0.7.0의 `reindex --from-vault`는 이미 turns 있는 세션을 항상 skip하고, DB를 통째로 지우고 재구축하는 유일한 대안은 소스 확인 결과 `git_branch`(202/216 세션 보유)를 영구 NULL로 만드는 손실이 확정적이라 실행하지 않음 — 라이브 DB는 백업(`index.sqlite.bak-kiwi-rebuild`)만 만들고 미변경, lindera/kiwi 혼합 톤화 상태 유지(질의는 kiwi, 기존 인덱스는 lindera; 기능은 정상, MCP/hook/launchd에는 위 두 env var 전달 필요 — 자세한 내용은 `.superpowers/sdd/task-2-report.md` "Fix: kiwi tokenizer" / "Fix 2" 참고).
   - 임베딩 백엔드: **none** — BM25만으로 시작. 자기 대화 검색은 키워드를 기억하는 경우가 대부분이라 BM25로 충분. 검색 품질이 아쉬우면 `ort`(ONNX 내장 bge-m3) 백엔드로 전환 후 `secall reindex`
   - git remote: 사용 안 함 (동기화는 iCloud)
-- 초기 인제스트: `secall ingest --auto` → 526개 세션
+- 초기 인제스트: `secall ingest --auto` — [Task 2 실측] 원본 JSONL 531개 중 서브에이전트 중첩 세션 303개 제외 → 상위 후보 228개 → 216개 인제스트(claude-code 202 + codex 5 + gemini-cli 9; 파스 에러 2, 중복 스킵 24), 31,897턴, 볼트 17M
 - MCP 등록: `claude mcp add --scope user secall -- secall mcp` → 모든 프로젝트에서 과거 세션 검색
 - 자동화: launchd로 매일 1회 `secall sync`
 - 위키/작업일기: `secall wiki update --backend claude` — LLM 토큰을 쓰므로 초기엔 수동 실행, 품질 확인 후 주 1회 자동화 검토
