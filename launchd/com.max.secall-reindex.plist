@@ -1,0 +1,31 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.max.secall-reindex</string>
+  <!--
+    주간 인덱스 재구축. daily sync가 iCloud fileprovider 쓰기 충돌
+    ("Resource deadlock avoided")로 검색 인덱스에서 세션을 몇 개씩 누락시키는
+    드리프트를 볼트(원본, 불변)에서 통째로 재구축해 자동 복구한다.
+    볼트 md가 원본이고 DB는 파생 캐시라 안전한 연산.
+    plist 규칙은 sync 잡과 동일 (직접 exec + FDA + kiwi env) — com.max.secall-sync.plist 참고.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/max/.local/bin/secall</string>
+    <string>reindex</string>
+    <string>--from-vault</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>KIWI_LIBRARY_PATH</key><string>/Users/max/.local/share/secall/kiwi/libkiwi.dylib</string>
+    <key>KIWI_MODEL_PATH</key><string>/Users/max/.local/share/secall/kiwi/model/models/cong/base</string>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/max/.local/bin</string>
+  </dict>
+  <!-- 매주 일요일 09:30 (일일 sync 09:00 이후, 겹치지 않게) -->
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>/tmp/secall-reindex.log</string>
+  <key>StandardErrorPath</key><string>/tmp/secall-reindex.err</string>
+</dict>
+</plist>
