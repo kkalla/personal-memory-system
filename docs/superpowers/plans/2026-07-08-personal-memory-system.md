@@ -189,7 +189,7 @@ git add -A && git commit -m "chore: 초기 인제스트 완료 — 세션 수/�
 - Consumes: Task 1의 `secall` CLI
 - Produces: 모든 프로젝트에서 사용 가능한 `secall` MCP 서버 (recall/get/status/wiki_search/graph_query 툴)
 
-- [ ] **Step 1: user 스코프로 등록**
+- [x] **Step 1: user 스코프로 등록**
 
 ```bash
 claude mcp add --scope user secall -- secall mcp
@@ -197,7 +197,18 @@ claude mcp add --scope user secall -- secall mcp
 
 주의: `secall`이 로그인 셸 PATH에만 있으면 MCP 실행이 못 찾을 수 있음 — 그 경우 `which secall`의 절대경로로 등록.
 
-- [ ] **Step 2: 등록 확인**
+결과: 브리핑 원안 대신 아래 augmented 커맨드로 등록 — Task 2에서 발견된 이슈(179번째 줄 참고)대로, `claude mcp add`는 로그인 셸(`~/.zshenv`)을 거치지 않고 커맨드를 직접 spawn하므로 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`를 상속하지 못함. 두 값을 `--env`로 명시 전달:
+
+```bash
+claude mcp add secall --scope user \
+  --env KIWI_LIBRARY_PATH="$HOME/.local/share/secall/kiwi/libkiwi.dylib" \
+  --env KIWI_MODEL_PATH="$HOME/.local/share/secall/kiwi/model/models/cong/base" \
+  -- secall mcp
+```
+
+등록 전 두 경로 실존 확인(`libkiwi.dylib` 15M, `model/models/cong/base/` 하위 `cong.mdl` 76M 등 정상 존재). `secall`은 절대경로(`which secall` → `/Users/max/.local/bin/secall`) 없이 bare 이름으로도 정상 연결됨(등록 시점에 PATH가 이미 해석되어 저장되는 것으로 보임) — 별도 재등록 불필요.
+
+- [x] **Step 2: 등록 확인**
 
 ```bash
 claude mcp list
@@ -205,12 +216,16 @@ claude mcp list
 
 Expected: `secall` 항목이 connected 상태.
 
-- [ ] **Step 3: 검증 기록 커밋**
+결과: `secall: secall mcp - ✔ Connected`. `claude mcp get secall` 상세: Scope User config, Command `secall`, Args `mcp`, Environment에 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH` 정상 반영 확인.
+
+- [x] **Step 3: 검증 기록 커밋**
 
 ```bash
 cd /Users/max/00_Projects/95_personal-memory
 git add -A && git commit -m "chore: secall MCP user 스코프 등록"
 ```
+
+결과: 커밋 완료 (plan 문서 체크박스 갱신 + `.superpowers/sdd/task-3-report.md` 대상 — `~/.claude.json`은 claude CLI가 관리하며 이 저장소 밖에 있어 커밋 대상 아님).
 
 ---
 
