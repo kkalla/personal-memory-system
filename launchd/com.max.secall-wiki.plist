@@ -1,0 +1,36 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.max.secall-wiki</string>
+  <!--
+    주간 위키 갱신. `secall wiki update`는 아직 어떤 wiki 페이지에도
+    referenced 되지 않은 세션만 증분 처리하므로(전체 재생성 아님) 매주
+    실행이 가볍다. --backend claude는 내부적으로 `claude -p` 서브프로세스를
+    새로 띄워 iCloud 볼트(wiki/)에 직접 쓰므로 sync/reindex와 동일한 TCC
+    이슈가 재발할 수 있음 — 최초 kickstart로 행 여부 검증 필요.
+    wiki.backends.claude.model=sonnet은 config.toml에 이미 명시됨.
+    --no-pull: seCall git sync를 쓰지 않으므로 git 관련 동작 생략.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/Users/max/.local/bin/secall</string>
+    <string>wiki</string>
+    <string>update</string>
+    <string>--backend</string>
+    <string>claude</string>
+    <string>--no-pull</string>
+  </array>
+  <key>EnvironmentVariables</key>
+  <dict>
+    <key>KIWI_LIBRARY_PATH</key><string>/Users/max/.local/share/secall/kiwi/libkiwi.dylib</string>
+    <key>KIWI_MODEL_PATH</key><string>/Users/max/.local/share/secall/kiwi/model/models/cong/base</string>
+    <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/max/.local/bin</string>
+  </dict>
+  <!-- 매주 금요일 16:30 -->
+  <key>StartCalendarInterval</key>
+  <dict><key>Weekday</key><integer>5</integer><key>Hour</key><integer>16</integer><key>Minute</key><integer>30</integer></dict>
+  <key>StandardOutPath</key><string>/tmp/secall-wiki.log</string>
+  <key>StandardErrorPath</key><string>/tmp/secall-wiki.err</string>
+</dict>
+</plist>
