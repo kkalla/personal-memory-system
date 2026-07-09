@@ -6,7 +6,7 @@
 
 - **seCall** (v0.7.0) — Claude Code 세션 아카이브·검색·위키. 볼트: iCloud Obsidian vault `96_memory/` (경로에 공백 있음 — 항상 인용)
 - **memory-tick** (`skills/memory-tick/`) — Stop hook 30분 스로틀로 인사이트 자동 저장, SessionStart hook으로 인덱스 주입. `~/.claude/skills/memory-tick`은 여기로 symlink
-- **launchd** — 매일 09:00 `secall sync` (`launchd/com.max.secall-sync.plist`) + 매주 일요일 09:30 `secall reindex --from-vault` (`launchd/com.max.secall-reindex.plist`) + 매주 금요일 16:30 `secall wiki update --backend claude` (`launchd/com.max.secall-wiki.plist`, 2026-07-09 추가)
+- **launchd** — 매일 09:00 `secall sync` (`launchd/com.max.secall-sync.plist`) + 매주 월요일 09:10 `secall reindex --from-vault` (`launchd/com.max.secall-reindex.plist`, sync 직후로 10분 띄움) + 매주 금요일 16:30 `secall wiki update --backend claude` (`launchd/com.max.secall-wiki.plist`)
 
 ## 자주 쓰는 명령
 

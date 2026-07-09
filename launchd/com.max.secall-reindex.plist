@@ -22,9 +22,9 @@
     <key>KIWI_MODEL_PATH</key><string>/Users/max/.local/share/secall/kiwi/model/models/cong/base</string>
     <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/max/.local/bin</string>
   </dict>
-  <!-- 매주 일요일 09:30 (일일 sync 09:00 이후, 겹치지 않게) -->
+  <!-- 매주 월요일 09:10 (일일 sync 09:00과 겹치면 iCloud 쓰기 경합 재현 위험 — 10분 띄움) -->
   <key>StartCalendarInterval</key>
-  <dict><key>Weekday</key><integer>0</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>30</integer></dict>
+  <dict><key>Weekday</key><integer>1</integer><key>Hour</key><integer>9</integer><key>Minute</key><integer>10</integer></dict>
   <key>StandardOutPath</key><string>/tmp/secall-reindex.log</string>
   <key>StandardErrorPath</key><string>/tmp/secall-reindex.err</string>
 </dict>
