@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.max.secall-scrub</string>
+  <!--
+    시크릿 스크럽: secall sync(09:00)가 읽기 전에 로컬 세션 JSONL
+    (~/.claude/projects)에서 시크릿 패턴과 <private> 스팬을 마스킹한다.
+    08:45 = sync 15분 전. 대상이 로컬 파일뿐이라 iCloud TCC/FDA가 필요 없다
+    (sync/reindex 잡과 달리 — 저 둘은 vault가 iCloud라 secall 바이너리에 FDA 등록함).
+    /usr/bin/python3 직접 exec, 스크립트는 stdlib만 사용.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/max/00_Projects/95_personal-memory/scrub/scrub_secrets.py</string>
+  </array>
+  <key>StartCalendarInterval</key>
+  <dict><key>Hour</key><integer>8</integer><key>Minute</key><integer>45</integer></dict>
+  <key>StandardOutPath</key><string>/tmp/secall-scrub.log</string>
+  <key>StandardErrorPath</key><string>/tmp/secall-scrub.err</string>
+</dict>
+</plist>
