@@ -4,6 +4,17 @@
 <dict>
   <key>Label</key><string>com.max.secall-reindex</string>
   <!--
+    ⚠️ 2026-07-30에 비활성화. `~/Library/LaunchAgents/archive/`로 옮겨뒀고 이 파일은 기록용이다.
+    끈 이유 두 가지:
+      ① 이 잡이 임베딩을 매주 전부 지운다. `reindex --from-vault`는 전 세션을 재수집하고
+         재수집 경로엔 `DELETE FROM turn_vectors WHERE session_id = ?1`이 있다. 벡터는
+         볼트에 없고 DB에만 있는 파생물이라 "볼트에서 재구축"은 곧 벡터 파괴다.
+         실측: 38,300턴 중 turn_vectors 32개만 생존(10시간짜리 embed 결과가 사라짐).
+      ② 애초에 이 잡의 존재 이유였던 드리프트 원인(iCloud fileprovider 쓰기 충돌)이
+         볼트를 로컬 ~/99_memory로 옮기면서 사라졌다.
+    드리프트가 의심되면 수동으로 돌리고, 그 직후 `secall embed`를 반드시 이어 붙일 것.
+  -->
+  <!--
     주간 인덱스 재구축. daily sync가 iCloud fileprovider 쓰기 충돌
     ("Resource deadlock avoided")로 검색 인덱스에서 세션을 몇 개씩 누락시키는
     드리프트를 볼트(원본, 불변)에서 통째로 재구축해 자동 복구한다.

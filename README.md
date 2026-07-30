@@ -9,25 +9,40 @@
 - **memory-tick** (`skills/memory-tick/`) — Stop hook 30분 스로틀로 인사이트 자동 저장, SessionStart hook으로 인덱스 주입.
   - **스킬 배치 경로가 2단이다**: `~/.claude/skills`와 `~/.claude-work/skills`가 둘 다 `~/.agents/skills`로 symlink돼 있고, 그 안의 `memory-tick`이 이 레포로 symlink된다. 즉 레포 = 유일한 원본이고 개인용·업무용이 같은 실체를 본다.
   - ⚠️ **2026-07-30까지 이게 symlink가 아니라 07-09에 멈춘 복사본이었다.** 그래서 레포의 스킬 개선(`근거 표기` 섹션 등)이 실제 세션에는 한 번도 반영되지 않았고, 볼트 이전 때 구 경로가 남아 다음 세션이 마이그레이션된 폴더에 쓸 위험이 있었다. 옛 복사본은 `~/.agents/archive/skills-memory-tick-20260730`에 보관. **교훈 — 훅 커맨드가 레포 절대경로를 가리키는 것과 스킬 본문(SKILL.md)이 레포를 가리키는 것은 별개다.** 훅이 정상 동작하는 것만 보고 스킬 본문도 최신이라고 가정하면 안 된다. 검증: `readlink -f ~/.claude/skills/memory-tick/SKILL.md`
+- **MCP 레이어** (`scripts/`) — 훅이 없는 CLI(agy·codex 등)를 메모리에 붙이는 CLI 독립 배선. 셋 다 표준 라이브러리만 쓰고 `--selftest`가 내장돼 있다.
+  - `memory_mcp.py` — 볼트 읽기/쓰기 MCP 서버. `memory_get()`(인자 없으면 인덱스, 이름 주면 노트 전문) + `memory_save(kind, slug, description, body, tags)`. 쓰기는 memory-tick 포맷을 고정하고 `scrub/scrub_secrets.py`의 패턴을 **import해서** 쓰기 직전에 마스킹한다(import 실패 시 서버가 안 뜬다 — 평문으로 쓰는 것보다 시끄럽게 죽는 게 낫다). **읽기 툴이 필요한 이유**: secall이 인덱싱하는 건 `raw/.sessions/`뿐이고 `memory/*.md`는 대상이 아니다. 저장 트리거는 훅이 없으니 `~/.claude/CLAUDE.md`(=`~/.gemini/GEMINI.md` 심링크)의 「개인 메모리」 절이 담당한다
+  - `mcp_shim.py` — agy가 `initialize` 전에 보내는 비표준 `server/discover`를 가로채 `-32601`로 답하는 stdio 프록시. 엄격한 서버(secall이 쓰는 rmcp)는 이 요청에 연결을 끊는다. **직접 만드는 MCP 서버는 모르는 메서드에 에러만 돌려주고 연결은 유지하도록 짜면** 이 방언에 무료로 면역이 된다
+  - `mcp_http_bridge.py` — stdio만 받는 클라이언트(Claude 데스크톱 앱)를 공유 HTTP 서버에 붙이는 브릿지. 모델을 로드하지 않아 RSS 6MB
 - **launchd** — 아래 「적용 중인 launchd 잡」 참고
 - **시크릿 마스킹** (`scrub/`) — 3중 방어: ① PreToolUse 훅 `block_env_dump.py`가 `.env` 값 덤프를 세션에서 차단 (`~/.claude/settings.json` 등록) ② `scrub_secrets.py`가 매일 08:45(sync 15분 전) 로컬 세션 JSONL에서 시크릿 패턴·`<private>` 스팬을 마스킹 — 로컬 파일만 만지므로 FDA 불필요. 스캔 루트는 `DEFAULT_ROOTS` 2개(`~/.claude/projects` + `~/.claude-work/projects`)로, 업무용이 빠지면 `GITLAB_TOKEN` 류가 마스킹 없이 볼트로 올라간다(2026-07-30 실측: 업무용 34파일 중 4파일에 시크릿 14건). `_work--` 심링크 때문에 같은 inode를 두 번 스캔하지만 마스킹은 멱등이라 무해하며, 심링크가 사라져도 커버리지가 유지되도록 두 루트를 일부러 남겨둔다 ③ memory-tick 스킬에 시크릿 저장 금지 규칙. 수동 점검: `python3 scrub/scrub_secrets.py --report`, vault 백필: `--paths <vault>/raw <vault>` (값 미출력, 룰명×개수만 로그). 셀프테스트: `python3 scrub/test_scrub.py`
 
 ## 적용 중인 launchd 잡
 
-레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-07-30 기준 5개 전부 로드돼 있고 레포 원본과 내용이 일치한다.
+레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-07-30 기준 4개 + 상주 1개가 로드돼 있고 레포 원본과 내용이 일치한다.
 
 | 시각 | Label | 실행 | 로그 |
 |---|---|---|---|
 | 매일 08:40 | `com.max.claude-work-links` | `/bin/sh scripts/link_work_projects.sh` | `/tmp/claude-work-links.{log,err}` |
 | 매일 08:45 | `com.max.secall-scrub` | `/usr/bin/python3 scrub/scrub_secrets.py` | `/tmp/secall-scrub.{log,err}` |
 | 매일 09:00 | `com.max.secall-sync` | `secall sync` | `/tmp/secall-sync.{log,err}` |
-| 매주 월 09:10 | `com.max.secall-reindex` | `secall reindex --from-vault` | `/tmp/secall-reindex.{log,err}` |
 | 매주 화 13:00 | `com.max.secall-wiki` | `secall wiki update --backend claude --no-pull` | `/tmp/secall-wiki.{log,err}` |
+| 상주 | `com.max.secall-mcp` | `secall mcp --http 127.0.0.1:8971` | `/tmp/secall-mcp.{log,err}` |
+| ~~매주 월 09:10~~ | ~~`com.max.secall-reindex`~~ | **비활성 (2026-07-30)** — 임베딩을 매주 지웠다 | — |
+
+**`com.max.secall-mcp`는 공유 MCP 서버다.** stdio로 `secall mcp`를 띄우면 클라이언트마다 프로세스가 하나씩 생기고 각각 bge-m3 ONNX를 2.1GB씩 로드한다 — 2026-07-30에 6개(Claude Code CLI 3 + 데스크톱 앱 2 + agy 1)가 동시에 떠서 스왑이 28.6GB 중 27.2GB까지 차고 agy의 MCP 연결이 5분 8초 걸렸다. 이 잡 하나로 모델 로드를 1회로 줄이고 각 클라이언트는 HTTP로 붙인다(`RunAtLoad`+`KeepAlive`, 10초 내 listen).
+
+| 클라이언트 | 등록 방법 |
+|---|---|
+| Claude Code | `claude mcp add --scope user --transport http secall http://127.0.0.1:8971/mcp` |
+| agy | `~/.gemini/config/mcp_config.json`에 `{"serverUrl": "http://127.0.0.1:8971/mcp"}` |
+| Claude 데스크톱 앱 | `claude_desktop_config.json`은 **stdio만** 유효한 설정으로 인정하므로(`{"type":"http",...}`은 "not valid MCP server configurations"로 건너뜀) `scripts/mcp_http_bridge.py`를 `command`로 끼운다 — 모델을 안 물어서 브릿지 RSS는 6MB |
+
+**`com.max.secall-reindex`를 끈 이유**: `reindex --from-vault`는 전 세션을 재수집하고 재수집 경로엔 `DELETE FROM turn_vectors WHERE session_id = ?1`이 있다. 벡터는 볼트에 없고 DB에만 있는 파생물이라 "볼트에서 재구축"이 곧 벡터 파괴다(실측: 38,300턴 중 32개만 생존 — 10시간짜리 embed 결과가 사라졌다). 게다가 이 잡의 존재 이유였던 iCloud fileprovider 드리프트는 볼트를 로컬로 옮기며 사라졌다. plist는 `~/Library/LaunchAgents/archive/`에 보관. 드리프트가 의심되면 수동 실행하고 **직후 `secall embed`를 반드시 이어 붙일 것**.
 
 **아침 3연쇄의 순서에 의미가 있다** — 08:40 링크 갱신(새 업무 프로젝트를 그날 수집에 포함) → 08:45 스크럽(시크릿 마스킹) → 09:00 sync(볼트/iCloud에 반영). 앞의 둘이 sync보다 뒤로 가면 평문이 볼트로 새거나 새 업무 세션이 하루 늦게 들어온다.
 
 **실행 방식이 두 부류로 갈린다:**
-- **iCloud를 만지는 잡**(sync·reindex·wiki)은 `~/.local/bin/secall`을 **직접 exec**해야 한다. launchd 잡의 TCC 권한은 실행 바이너리에 귀속되므로 `/bin/zsh -c` 래퍼를 쓰면 zsh에 전체 디스크 접근(FDA)을 줘야 한다. `~/.local/bin/secall`에 FDA 1회 등록으로 해결돼 있다. `~/.zshenv`를 안 거치므로 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`/`ORT_DYLIB_PATH`를 plist의 `EnvironmentVariables`에 직접 넣는다 — 특히 `ORT_DYLIB_PATH`가 없으면 `embedding.backend=ort` 상태에서 sync가 패닉으로 죽는다.
+- **볼트를 만지는 잡**(sync·wiki)은 `~/.local/bin/secall`을 **직접 exec**해야 한다. launchd 잡의 TCC 권한은 실행 바이너리에 귀속되므로 `/bin/zsh -c` 래퍼를 쓰면 zsh에 전체 디스크 접근(FDA)을 줘야 한다. `~/.local/bin/secall`에 FDA 1회 등록으로 해결돼 있다. `~/.zshenv`를 안 거치므로 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`/`ORT_DYLIB_PATH`를 plist의 `EnvironmentVariables`에 직접 넣는다 — 특히 `ORT_DYLIB_PATH`가 없으면 `embedding.backend=ort` 상태에서 sync가 패닉으로 죽는다.
 - **로컬 파일만 만지는 잡**(scrub·claude-work-links)은 FDA가 필요 없어 `/usr/bin/python3`·`/bin/sh` 래퍼를 써도 된다.
 
 **상태 확인**: `launchctl list | grep com.max` — 두 번째 컬럼이 마지막 종료 코드다(`0`이 정상, `-9`는 SIGKILL). 1회 강제 실행은 `launchctl kickstart -k gui/$(id -u)/<Label>`. plist를 고친 뒤엔 `~/Library/LaunchAgents/`로 다시 복사하고 `launchctl bootout` → `bootstrap` 해야 반영된다.
@@ -37,13 +52,13 @@
 ## 자주 쓰는 명령
 
 - 검색: `secall recall "키워드"` (토크나이저 kiwi, 임베딩 없음 — BM25만)
-- 벡터 검색 켜기: config에서 `embedding.backend`를 `ort`로 바꾸고 `secall reindex`
+- 벡터 검색 켜기: config에서 `embedding.backend`를 `ort`로 바꾸고 **`secall embed --concurrency 1 --batch-size 8`** (`reindex`가 아니다 — 그건 벡터를 지운다). 10시간짜리 작업이라 데몬으로 띄울 것. 진행: `sqlite3 ~/Library/Caches/secall/index.sqlite "SELECT COUNT(*) FROM turn_vectors;"`
 - 위키 갱신: `secall wiki update --backend claude --session <id>` — **`--backend` 필수 명시**. config 기본값(`wiki.default_backend`)은 최종 리뷰 반영으로 `disabled`(이전엔 `codex`, 모델 에러로 우연히 깨져 있었음 — Task 8 실측). 세션 전체 일괄 갱신(`secall wiki update`, backend 없이)은 토큰을 많이 쓰므로 품질 확인 후 수동 판단
 - 정합성: `secall lint` (memory/ 서브폴더와 공존 확인됨, 0 errors)
-- DB 복구: `secall reindex --from-vault` (볼트=원본, DB=로컬 파생 캐시)
+- DB 복구: `secall reindex --from-vault` (볼트=원본, DB=로컬 파생 캐시) — ⚠️ 임베딩은 볼트에 없어서 같이 지워진다. 실행했으면 직후 `secall embed` 필수
 - hook 셀프테스트: `skills/memory-tick/test_hooks.sh`
 - kiwi 토크나이저 env: `~/.zshenv`에 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH` 영속화됨 (config.toml엔 해당 키 없음). MCP 서버는 `claude mcp add`가 zshenv를 거치지 않으므로 등록 시 `--env`로 동일하게 전달했음 — 이미 완료, 재등록 시에만 신경 쓰면 됨
-- MCP 상태 확인: `claude mcp list` → `secall: /Users/max/.local/bin/secall mcp - ✔ Connected` (최종 리뷰 반영으로 bare `secall` 대신 절대경로로 재등록 — GUI 등 PATH에 `~/.local/bin`이 없는 컨텍스트에서도 안전)
+- MCP 상태 확인: `claude mcp list` → `secall: http://127.0.0.1:8971/mcp (HTTP) - ✔ Connected`. 2026-07-30에 stdio에서 공유 HTTP 서버로 옮겼다(모델 중복 로드 제거) — 안 붙으면 `launchctl list | grep secall-mcp`부터. stdio로 등록할 때의 교훈은 그대로 유효하다: bare 커맨드명 대신 절대경로 + env는 `--env`로 명시
 
 ## 업데이트
 
@@ -77,7 +92,8 @@
   - 운영 방침: 임베딩은 **맥이 유휴일 때 단독으로** `secall embed --concurrency 1`. 급하지 않으면 BM25만으로도 검색은 동작하니 미뤄도 된다(벡터 없는 세션은 `secall recall`에서 키워드 매칭으로만 잡힘).
   - **미해결**: `ort 2.0.0-rc.10`이 ONNX Runtime `1.22.x`를 기대하는데 brew에 설치된 건 `1.28.0`이다(경고만 뜨고 동작은 함). 성능/정확도 영향은 미확인 — 임베딩을 본격적으로 돌리기 전에 1.22 계열로 핀 고정을 검토할 것.
 - **자격증명 노출 주의**: `raw/.sessions/`(불변 원본 아카이브, iCloud 동기화 대상)에는 과거 세션에서 `.env`를 grep/cat한 내용이 그대로 보존된다. 평문 크리덴셜 9종이 담긴 세션 13개를 2026-07-08에 볼트+DB+graph에서 삭제, 원본 JSONL은 `~/.claude/secrets-quarantine/`(로컬 전용)로 격리함. 앞으로도 세션에서 시크릿을 열면 아카이브에 평문으로 남으므로, 노출된 키는 로테이션하고 raw 파일을 외부 공유·별도 백업할 때는 점검 필요. 재점검 스캔은 값 출력 없이 변수명·개수만 보는 방식으로 (자세한 내용: `.superpowers/sdd/task-8-report.md`)
-- **검색 인덱스 드리프트 + 주간 자동 복구**: iCloud 볼트에 대한 `secall sync`는 fileprovider 쓰기 충돌("Resource deadlock avoided")로 매 실행마다 검색 인덱스에서 세션을 몇 개씩 누락시킬 수 있다. 볼트 md 원본은 안전(불변)하고 DB는 파생 캐시라 손실은 아니며, 매주 일요일 09:30 `secall reindex --from-vault`(launchd)가 볼트에서 인덱스를 통째로 재구축해 자동 복구한다. 수동 복구: `secall reindex --from-vault`. 인덱스가 틀어졌는지 확인: `secall lint`(세션 수·FTS row 불일치 보고)
+- **검색 인덱스 드리프트**: iCloud 볼트에 대한 `secall sync`는 fileprovider 쓰기 충돌("Resource deadlock avoided")로 매 실행마다 검색 인덱스에서 세션을 몇 개씩 누락시킬 수 있었다. **볼트를 로컬로 옮긴 뒤 이 원인은 사라졌고, 그래서 주간 자동 복구 잡(`com.max.secall-reindex`)도 2026-07-30에 껐다** — 그 잡이 임베딩을 매주 지우고 있었기 때문(위 「적용 중인 launchd 잡」 참고). 필요하면 수동 복구: `secall reindex --from-vault` **+ 직후 `secall embed`**. 인덱스가 틀어졌는지 확인: `secall lint`(세션 수·FTS row 불일치 보고)
+- **DB에만 있고 볼트엔 없는 것**: 임베딩(`turn_vectors`)과 지식그래프는 볼트 md에서 복원되지 않는 파생물이다. "DB는 파생 캐시라 재구축이 안전하다"는 명제는 여기까지 오면 깨진다 — 재구축 명령을 자동화에 걸기 전에 **원본에 없는 게 뭔지** 먼저 확인할 것.
 - **wiki update도 같은 iCloud 쓰기 충돌에 노출**: `secall wiki update --backend claude`가 짧은 시간에 sync/reindex 등 다른 iCloud 쓰기 작업과 겹치면 내부 Sonnet 서브프로세스가 `EDEADLK` 류 에러를 만날 수 있다. 이 에이전트는 Bash/ps 툴이 없어서 원인을 진단할 방법이 없는데도, 로그에 "다른 프로세스(PID·시각까지)가 동시에 쓰고 있다"처럼 구체적이지만 근거 없는 이야기를 남기고 넘어갈 수 있음(2026-07-09 실측, 확인 결과 그런 경쟁 프로세스는 실제로 없었음 — 환각). 파일 손상 없이 그냥 아무 것도 안 쓰고 종료되는 형태였음. 평상시 금요일 단독 실행(다른 iCloud 작업과 안 겹침)에서는 재현 가능성 낮음 — 로그에 이런 텍스트가 보이면 `secall lint` + 위키 파일 최신순으로 실제 변경 여부만 확인하면 됨, 재실행하면 보통 해결
 - **reindex는 내용 변경을 못 본다**: `secall reindex --from-vault`의 skip은 세션 존재 기준이라, 이미 인덱스된 세션의 볼트 md를 고쳐도(스크럽 등) 인덱스는 옛 내용을 유지한다. 갱신하려면 해당 세션 row를 DB(`~/Library/Caches/secall/index.sqlite`)의 turns_fts/turns/sessions에서 지우고 `secall reindex --from-vault` — 단, 이 재인덱스는 세션을 **turns 0개로** 만들므로 반드시 `secall reindex --from-vault --repair-missing-turns`까지 실행해야 완복구된다 (2026-07-15 vault 백필 때 실측). favorite/notes 있는 세션은 지우면 유실되니 삭제 전 확인. FTS 검증은 LIKE 말고 `MATCH`로 (FTS5 가상 테이블에서 LIKE가 오답 냄).
 - **스크럽의 알려진 천장**: ① 08:45 시점에 30분 내 수정된(진행 중) 세션은 그날 sync에 평문으로 들어갈 수 있음 — 로컬은 다음 날 마스킹되지만 vault 사본은 남으므로, 의심되면 `scrub_secrets.py --report --paths <vault>`로 확인 후 수동 처리. ② 이미 iCloud에 올라간 평문은 Apple 서버에 버전이 남았을 수 있음 — 노출 키는 마스킹과 무관하게 로테이션.
