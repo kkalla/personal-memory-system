@@ -1,0 +1,38 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<!DOCTYPE plist PUBLIC "-//Apple//DTD PLIST 1.0//EN" "http://www.apple.com/DTDs/PropertyList-1.0.dtd">
+<plist version="1.0">
+<dict>
+  <key>Label</key><string>com.max.job-monitor</string>
+  <!--
+    다른 launchd 잡의 마지막 종료 코드를 읽어 실패를 macOS 알림으로 띄운다.
+    `/tmp/*.err`는 아무도 안 읽는다는 게 실제로 문제였다 — 위키 잡이 등록 이후
+    한 번도 성공 못 한 것을 3일간 몰랐고, sync가 SIGTERM으로 죽은 것도 수동으로
+    `launchctl list`를 쳐볼 때까지 몰랐다. 판정 규칙과 dedupe는 스크립트 헤더 주석에.
+
+    각 잡을 `sh -c 'cmd || osascript ...'`로 감싸지 않은 이유: 잘 돌고 있는 잡을
+    전부 고쳐야 하고, TCC 권한이 실행 바이너리에 귀속되므로 래퍼를 끼우면 권한
+    주체가 secall에서 /bin/sh로 바뀐다. 바깥에서 읽으면 기존 잡을 안 건드린다.
+
+    ⚠️ 반드시 `gui/$(id -u)`로 bootstrap할 것 — osascript 알림은 GUI 세션에
+    붙어야 배너가 뜬다. `system/`으로 올리면 조용히 아무 것도 안 보인다.
+  -->
+  <key>ProgramArguments</key>
+  <array>
+    <string>/usr/bin/python3</string>
+    <string>/Users/max/00_Projects/95_personal-memory/scripts/check_job_failures.py</string>
+  </array>
+  <!--
+    09:30 = 아침 3연쇄(08:40 링크 → 08:45 스크럽 → 09:00 sync) 직후.
+    13:30 = 화 13:00 위키 잡 직후. 요일 조건을 안 걸고 매일 도는 건 상주 잡
+    (secall-mcp)이 죽은 것도 같이 잡기 위해서다.
+  -->
+  <key>StartCalendarInterval</key>
+  <array>
+    <dict><key>Hour</key><integer>9</integer><key>Minute</key><integer>30</integer></dict>
+    <dict><key>Hour</key><integer>13</integer><key>Minute</key><integer>30</integer></dict>
+  </array>
+  <key>RunAtLoad</key><true/>
+  <key>StandardOutPath</key><string>/tmp/job-monitor.out</string>
+  <key>StandardErrorPath</key><string>/tmp/job-monitor.err</string>
+</dict>
+</plist>

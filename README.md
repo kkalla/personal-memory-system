@@ -18,7 +18,7 @@
 
 ## 적용 중인 launchd 잡
 
-레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-07-30 기준 4개 + 상주 1개가 로드돼 있고 레포 원본과 내용이 일치한다.
+레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-07-30 기준 5개 + 상주 1개가 로드돼 있고 레포 원본과 내용이 일치한다.
 
 | 시각 | Label | 실행 | 로그 |
 |---|---|---|---|
@@ -26,6 +26,7 @@
 | 매일 08:45 | `com.max.secall-scrub` | `/usr/bin/python3 scrub/scrub_secrets.py` | `/tmp/secall-scrub.{log,err}` |
 | 매일 09:00 | `com.max.secall-sync` | `secall sync` | `/tmp/secall-sync.{log,err}` |
 | 매주 화 13:00 | `com.max.secall-wiki` | `secall wiki update --backend claude --no-pull` | `/tmp/secall-wiki.{log,err}` |
+| 매일 09:30·13:30 | `com.max.job-monitor` | `/usr/bin/python3 scripts/check_job_failures.py` | `/tmp/job-monitor.{out,err,log}` |
 | 상주 | `com.max.secall-mcp` | `secall mcp --http 127.0.0.1:8971` | `/tmp/secall-mcp.{log,err}` |
 | ~~매주 월 09:10~~ | ~~`com.max.secall-reindex`~~ | **비활성 (2026-07-30)** — 임베딩을 매주 지웠다 | — |
 
@@ -47,7 +48,10 @@
 
 **상태 확인**: `launchctl list | grep com.max` — 두 번째 컬럼이 마지막 종료 코드다(`0`이 정상, `-9`는 SIGKILL). 1회 강제 실행은 `launchctl kickstart -k gui/$(id -u)/<Label>`. plist를 고친 뒤엔 `~/Library/LaunchAgents/`로 다시 복사하고 `launchctl bootout` → `bootstrap` 해야 반영된다.
 
-**실패 알림은 아직 없다** — `/tmp/*.err`는 아무도 안 읽어서 위키 잡 실패를 3일간 못 알아챈 전례가 있다(README 「주의」 참고).
+**실패 알림**: `com.max.job-monitor`(09:30·13:30 + 로드 시)가 `launchctl list`의 마지막 종료 코드를 읽어 0이 아니면 macOS 배너를 띄운다. 상세는 `/tmp/job-monitor.log`(실패 사유 + 해당 잡 `.err` 꼬리 300자), 현황만 보려면 `python3 scripts/check_job_failures.py --report`.
+- **각 잡을 `sh -c 'cmd || osascript ...'`로 감싸지 않았다.** 잘 돌고 있는 잡을 전부 고쳐야 하고, TCC 권한이 실행 바이너리에 귀속되므로 래퍼를 끼우면 권한 주체가 `secall`에서 `/bin/sh`로 바뀐다. 바깥에서 종료 코드만 읽으면 기존 잡을 안 건드리고 앞으로 추가되는 `com.max.*` 잡도 자동으로 커버된다. 대가는 즉시성(최대 다음 점검까지 지연).
+- **같은 실패를 반복 알리지 않는다** — 상태가 바뀔 때만 띄운다(`~/.claude/job_monitor_state.json`). 매일 같은 배너가 뜨면 결국 무시하게 되고, 그게 원래 문제였던 "아무도 안 읽는 로그"의 재발이다. 복구되면 복구 알림이 한 번 뜬다.
+- ⚠️ **`gui/$(id -u)`로 bootstrap해야 한다** — `osascript` 알림은 GUI 세션에 붙어야 배너가 뜬다. `system/`으로 올리면 조용히 아무 것도 안 보인다.
 
 ## 자주 쓰는 명령
 
