@@ -16,11 +16,18 @@
     <string>/Users/max/.local/bin/secall</string>
     <string>sync</string>
   </array>
-  <!-- ~/.zshenv를 거치지 않으므로 kiwi 토크나이저 env를 여기서 직접 지정 -->
+  <!--
+    ~/.zshenv를 거치지 않으므로 kiwi 토크나이저 env를 여기서 직접 지정.
+    ORT_DYLIB_PATH도 필수: sync는 ingest 단계에서 기본적으로 벡터 임베딩을
+    수행하므로(`--no-embed`로만 끌 수 있음), embedding.backend=ort 상태에서
+    이 값이 없으면 ort가 libonnxruntime.dylib을 못 찾고 패닉해 sync 전체가 죽는다.
+    (2026-07-27 `secall embed`에서 동일 패닉 실측)
+  -->
   <key>EnvironmentVariables</key>
   <dict>
     <key>KIWI_LIBRARY_PATH</key><string>/Users/max/.local/share/secall/kiwi/libkiwi.dylib</string>
     <key>KIWI_MODEL_PATH</key><string>/Users/max/.local/share/secall/kiwi/model/models/cong/base</string>
+    <key>ORT_DYLIB_PATH</key><string>/opt/homebrew/lib/libonnxruntime.dylib</string>
     <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/max/.local/bin</string>
   </dict>
   <key>StartCalendarInterval</key>
