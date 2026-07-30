@@ -14,7 +14,7 @@ description: |
 
 ## 저장소
 
-- 위치: `~/Library/Mobile Documents/iCloud~md~obsidian/Documents/Obsidian/96_memory/memory/` (플랫 폴더, 하위 폴더 없음)
+- 위치: `~/99_memory/memory/` (플랫 폴더, 하위 폴더 없음). 2026-07-30에 iCloud Obsidian 볼트에서 로컬로 이전 — iCloud 쓰기 충돌(`Resource deadlock avoided`) 때문
 - 파일명: `{type}_{slug}.md` (예: `feedback_pdf-conversion.md`)
 - 형식: 마크다운 + YAML frontmatter
 

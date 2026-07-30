@@ -4,7 +4,7 @@
 
 ## 구성
 
-- **seCall** (v0.7.0) — Claude Code 세션 아카이브·검색·위키. 볼트: iCloud Obsidian vault `96_memory/` (경로에 공백 있음 — 항상 인용)
+- **seCall** (v0.7.0) — Claude Code 세션 아카이브·검색·위키. 볼트: **`/Users/max/99_memory`(로컬)**. 2026-07-30에 iCloud Obsidian 볼트(`96_memory/`)에서 이전했다 — `/tmp/secall-sync.err`에 `Resource deadlock avoided (os error 11)`가 **479건** 쌓여 있었고, 하나하나가 인덱스에서 조용히 누락된 세션이다. 이전의 대가로 **다기기 동기화를 포기**했다(맥 전용). 이전 볼트는 삭제하지 않고 `96_memory.migrated-20260730`으로 남겨뒀다
 - **업무용 세션 수집** (`~/.claude-work`, `CLAUDE_CONFIG_DIR` 분리) — seCall이 자동으로 보게 하려면 `~/.claude/projects/_work--<프로젝트디렉토리명>` 심링크가 필요하다. `scripts/link_work_projects.sh`(매일 08:40 launchd)가 갱신하고 끊어진 링크도 정리한다. 상세 제약은 아래 「주의」 참고. **⚠️ 한시적 — 2026-08-11에 설정을 `~/.claude`로 통일하면 스크립트·plist·`_work--*` 링크를 전부 제거할 것**(제거 절차는 스크립트 헤더 주석). 현재 링크 확인: `command ls -l ~/.claude/projects | grep _work--`
 - **memory-tick** (`skills/memory-tick/`) — Stop hook 30분 스로틀로 인사이트 자동 저장, SessionStart hook으로 인덱스 주입. `~/.claude/skills/memory-tick`은 여기로 symlink
 - **launchd** — 아래 「적용 중인 launchd 잡」 참고
