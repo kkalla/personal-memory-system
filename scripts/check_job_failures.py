@@ -26,6 +26,7 @@
 import json
 import subprocess
 import sys
+import time
 from pathlib import Path
 
 PREFIX = "com.max."
@@ -33,6 +34,14 @@ RESIDENT = {"com.max.secall-mcp"}  # 항상 떠 있어야 하는 잡
 STATE_FILE = Path.home() / ".claude" / "job_monitor_state.json"
 LOG_FILE = Path("/tmp/job-monitor.log")
 ERR_TAIL_CHARS = 300
+
+# 위키 잡은 종료 코드로 감시가 안 된다 — 2026-07-31에 두 가지 실패를 실측했는데
+# 둘 다 exit 0이었다: ① `claude -p`에 프롬프트가 안 넘어가 잡담만 하고 끝남
+# ② 서브에이전트를 600초 상한에 잘리고도 `✓ Wiki update complete.` 출력.
+# 그래서 이 잡만은 산출물의 신선도로 판정한다.
+WIKI_LABEL = "com.max.secall-wiki"
+WIKI_DIR = Path.home() / "99_memory" / "wiki"  # 볼트는 2026-07-30 로컬로 이전됨
+WIKI_STALE_DAYS = 8  # 주간(화) 잡이므로 8일이면 한 주를 통째로 건너뛴 것
 
 
 def launchctl_list() -> str:
@@ -63,14 +72,45 @@ def verdicts(jobs):
     """실패한 잡만 (label, 사유) 리스트로."""
     out = []
     for label, (pid, status) in sorted(jobs.items()):
-        if status not in (0, None):
+        if label in RESIDENT:
+            # 상주 잡은 KeepAlive로 재시작되므로 "마지막 종료 코드"는 이미 죽은 이전
+            # 인스턴스의 것이다 — `launchctl kickstart -k`로 정상 재시작만 해도 -15가
+            # 남아 오탐이 난다(2026-07-31 실측). PID 유무가 유일한 신호.
+            if pid is None:
+                out.append((label, "상주 잡인데 실행 중이 아님"))
+        elif status not in (0, None):
             sig = (
                 " (SIGTERM)" if status == -15 else " (SIGKILL)" if status == -9 else ""
             )
             out.append((label, "종료 코드 %d%s" % (status, sig)))
-        elif label in RESIDENT and pid is None:
-            out.append((label, "상주 잡인데 실행 중이 아님"))
     return out
+
+
+def newest_wiki_mtime():
+    """위키 페이지 중 가장 최근 mtime. 디렉토리가 없거나 페이지가 0개면 None."""
+    try:
+        return max(p.stat().st_mtime for p in WIKI_DIR.rglob("*.md"))
+    except (OSError, ValueError):  # ValueError = 빈 시퀀스
+        return None
+
+
+def wiki_stale_reason(newest_mtime, now):
+    """위키 산출물이 너무 오래됐으면 사유 문자열, 아니면 None.
+
+    사유에 경과 일수를 넣지 않는다 — 매일 문자열이 달라지면 dedupe가 풀려서 같은
+    실패를 매일 알리게 되고, 그게 이 스크립트가 막으려던 "결국 무시하는 알림"이다.
+    """
+    if newest_mtime is None:
+        return "위키 디렉토리가 비었거나 없음 (%s)" % WIKI_DIR
+    if now - newest_mtime > WIKI_STALE_DAYS * 86400:
+        return "산출물이 %d일 넘게 안 바뀜 (잡이 exit 0이어도 실패)" % WIKI_STALE_DAYS
+    return None
+
+
+def wiki_failure(now):
+    """위키 산출물 판정 → (label, 사유) 또는 None."""
+    reason = wiki_stale_reason(newest_wiki_mtime(), now)
+    return (WIKI_LABEL, reason) if reason else None
 
 
 def err_tail(label: str) -> str:
@@ -104,10 +144,25 @@ def main() -> int:
     jobs = parse(launchctl_list())
     failures = verdicts(jobs)
 
+    # 종료 코드가 0이어도 산출물이 안 나온 경우를 잡는다. 이미 종료 코드로 실패한
+    # 잡이면 사유를 덮어쓰지 않는다 — 그쪽이 더 구체적이다.
+    stale = wiki_failure(time.time())
+    if stale and not any(label == WIKI_LABEL for label, _ in failures):
+        failures.append(stale)
+
     if report_only:
         for label, (pid, status) in sorted(jobs.items()):
             mark = "✗" if any(label == f[0] for f in failures) else "✓"
             print("%s %-32s pid=%-8s status=%s" % (mark, label, pid, status))
+        # 위키 신선도는 launchctl에 안 나오므로 따로 한 줄
+        print(
+            "%s %-32s %s"
+            % (
+                "✗" if stale else "✓",
+                "(wiki 산출물 신선도)",
+                stale[1] if stale else "최근 %d일 내 갱신됨" % WIKI_STALE_DAYS,
+            )
+        )
         return 1 if failures else 0
 
     # 상태가 바뀐 것만 알린다 (같은 실패를 매번 다시 알리면 무시하게 된다)
@@ -175,10 +230,26 @@ def selftest() -> int:
     )
     assert "상주" in dict(verdicts(dead))["com.max.secall-mcp"]
 
+    # 상주 잡을 kickstart -k로 재시작하면 이전 인스턴스의 -15가 남는다 — 실행 중이면 정상
+    restarted = parse(
+        sample.replace("13017\t0\tcom.max.secall-mcp", "61236\t-15\tcom.max.secall-mcp")
+    )
+    assert "com.max.secall-mcp" not in dict(verdicts(restarted)), verdicts(restarted)
+
     # status가 '-'(한 번도 안 돌았거나 알 수 없음)면 실패로 보지 않는다
     unknown = parse("PID\tStatus\tLabel\n-\t-\tcom.max.never-ran")
     assert unknown["com.max.never-ran"] == (None, None), unknown
     assert verdicts(unknown) == [], verdicts(unknown)
+
+    # 위키 산출물 신선도 — 잡이 exit 0이어도 실패로 잡아야 하는 케이스
+    now = 100 * 86400
+    assert wiki_stale_reason(now - 3 * 86400, now) is None  # 3일 전 갱신 → 정상
+    assert wiki_stale_reason(now - 9 * 86400, now) is not None  # 9일 → 한 주 건너뜀
+    assert wiki_stale_reason(None, now) is not None  # 위키가 통째로 없음
+    # dedupe가 풀리지 않도록 사유 문자열이 경과 시간에 따라 변하면 안 된다
+    assert wiki_stale_reason(now - 9 * 86400, now) == wiki_stale_reason(
+        now - 30 * 86400, now
+    )
 
     print("selftest OK")
     return 0

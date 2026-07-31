@@ -7,8 +7,8 @@
     주간 위키 갱신. `secall wiki update`는 아직 어떤 wiki 페이지에도
     referenced 되지 않은 세션만 증분 처리하므로(전체 재생성 아님) 매주
     실행이 가볍다. --backend claude는 내부적으로 `claude -p` 서브프로세스를
-    새로 띄워 iCloud 볼트(wiki/)에 직접 쓰므로 sync/reindex와 동일한 TCC
-    이슈가 재발할 수 있음 — 최초 kickstart로 행 여부 검증 필요.
+    새로 띄워 볼트(wiki/)에 직접 쓴다. (볼트는 2026-07-30에 로컬 ~/99_memory로
+    이전돼 iCloud TCC 이슈는 더 이상 해당 없음.)
     wiki.backends.claude.model=sonnet은 config.toml에 이미 명시됨.
     --no-pull: seCall git sync를 쓰지 않으므로 git 관련 동작 생략.
   -->
@@ -28,6 +28,17 @@
     <!-- embedding.backend=ort일 때 ONNX Runtime 위치. wiki update가 임베딩을 타는지는 미확인이라 예방 차원 -->
     <key>ORT_DYLIB_PATH</key><string>/opt/homebrew/lib/libonnxruntime.dylib</string>
     <key>PATH</key><string>/usr/bin:/bin:/usr/sbin:/sbin:/opt/homebrew/bin:/Users/max/.local/bin</string>
+    <!--
+      600초 절단 해제 (2026-07-31 실측으로 필요성 확인).
+      위키 에이전트는 무거운 페이지를 서브에이전트에 위임하는데, `claude -p`는 기본적으로
+      백그라운드 작업을 600초까지만 기다리고 `Background tasks still running after 600s;
+      terminating.`을 찍은 뒤 결과를 못 받은 채 끝낸다. 그런데도 secall은
+      `✓ Wiki update complete.` + exit 0으로 성공 처리하므로 종료 코드로는 안 보인다.
+      07-31 13:00 잡이 정확히 이렇게 반쪽만 하고 끝났고(ags-watchtower.md 미갱신),
+      같은 명령에 이 값을 0(무한 대기)으로 주니 16분을 완주했다.
+      대가: 잡 실행 시간의 상한이 사라진다 — 산출물 mtime 감시(check_job_failures.py)로 보완.
+    -->
+    <key>CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS</key><string>0</string>
   </dict>
   <!--
     매주 화요일 13:00. 이전 금 16:30 스케줄은 등록(07-15) 이후 한 번도 성공하지
