@@ -11,16 +11,28 @@
     보안 > 전체 디스크 접근 권한에 ~/.local/bin/secall 1회 등록으로 해결.
     (등록 전에는 vault 접근이 "Operation not permitted"로 막힌다 — task-7-report.md 참고)
   -->
+  <!--
+    `--no-embed` 필수 (2026-07-31). 이 맥(RAM 16GB)에서 sync의 ingest 단계 임베딩은
+    두 가지로 실패한다:
+    ① 안 끝난다 — 07-30 실행은 `Embedding 11 session(s)` 중 9시간 동안 3개만 하고
+       SIGTERM으로 죽었다(`launchctl list`에 -15). bge-m3가 2.1GB인데 스왑이 포화돼
+       스래싱한다. 같은 sync를 --no-embed로 돌리면 40초에 exit 0.
+    ② 있던 벡터를 지운다 — 재수집 경로가 `DELETE FROM turn_vectors WHERE session_id=?`를
+       타므로, ingest되는 세션마다 기존 임베딩이 날아간다(실측 4089→3901). 매일 도는
+       잡이라 최근 세션부터 벡터가 계속 깎였다.
+    벡터를 채우려면 맥 유휴 시 `secall embed --concurrency 1 --batch-size 8`을 단독으로
+    돌릴 것. 안 채워도 검색은 하이브리드에서 BM25가 받쳐준다.
+  -->
   <key>ProgramArguments</key>
   <array>
     <string>/Users/max/.local/bin/secall</string>
     <string>sync</string>
+    <string>--no-embed</string>
   </array>
   <!--
     ~/.zshenv를 거치지 않으므로 kiwi 토크나이저 env를 여기서 직접 지정.
-    ORT_DYLIB_PATH도 필수: sync는 ingest 단계에서 기본적으로 벡터 임베딩을
-    수행하므로(`--no-embed`로만 끌 수 있음), embedding.backend=ort 상태에서
-    이 값이 없으면 ort가 libonnxruntime.dylib을 못 찾고 패닉해 sync 전체가 죽는다.
+    ORT_DYLIB_PATH는 --no-embed 이후에도 남겨둔다: 위키 임베딩(wiki_vectors) 등
+    다른 경로가 ort를 건드릴 때 없으면 dylib을 못 찾고 패닉해 sync 전체가 죽는다.
     (2026-07-27 `secall embed`에서 동일 패닉 실측)
   -->
   <key>EnvironmentVariables</key>
