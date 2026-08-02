@@ -23,11 +23,24 @@
     벡터를 채우려면 맥 유휴 시 `secall embed --concurrency 1 --batch-size 8`을 단독으로
     돌릴 것. 안 채워도 검색은 하이브리드에서 BM25가 받쳐준다.
   -->
+  <!--
+    `--no-wiki` 필수 (2026-08-03). 이게 없으면 sync가 새로 들어온 세션 하나하나마다
+    `wiki update --session <id>`로 claude를 부른다 — 하루 30개 세션이면 30번이다.
+    위키는 주간 `com.max.secall-wiki` 잡(화 13:00, 전체 모드 1회)이 담당한다:
+    세션 단위 증분은 맥락이 세션 하나로 좁아 페이지 품질도 떨어지고, 09:00은
+    구독 쿼터 경쟁 시간대다.
+    이전에는 config `wiki.default_backend = "disabled"`가 이 역할을 대신했으나
+    `disabled`는 허용값이 아니라(claude|codex|haiku|ollama|ollama_cloud|lmstudio)
+    파싱 실패로 "우연히" 꺼져 있었고, 세션마다 `Unknown backend 'disabled'` 경고만
+    쌓였다(33건). config는 `claude`로 되돌렸으므로 이 플래그를 빼면 실제로 돈다.
+    → 수동으로 `secall sync`를 돌릴 때도 `--no-wiki`를 챙길 것.
+  -->
   <key>ProgramArguments</key>
   <array>
     <string>/Users/max/.local/bin/secall</string>
     <string>sync</string>
     <string>--no-embed</string>
+    <string>--no-wiki</string>
   </array>
   <!--
     ~/.zshenv를 거치지 않으므로 kiwi 토크나이저 env를 여기서 직접 지정.
