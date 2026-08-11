@@ -5,24 +5,22 @@
 ## 구성
 
 - **seCall** (v0.7.0) — Claude Code 세션 아카이브·검색·위키. 볼트: **`/Users/max/99_memory`(로컬)**. 2026-07-30에 iCloud Obsidian 볼트(`96_memory/`)에서 이전했다 — `/tmp/secall-sync.err`에 `Resource deadlock avoided (os error 11)`가 **479건** 쌓여 있었고, 하나하나가 인덱스에서 조용히 누락된 세션이다. 이전의 대가로 **다기기 동기화를 포기**했다(맥 전용). 이전 볼트는 삭제하지 않고 `96_memory.migrated-20260730`으로 남겨뒀다
-- **업무용 세션 수집** (`~/.claude-work`, `CLAUDE_CONFIG_DIR` 분리) — seCall이 자동으로 보게 하려면 `~/.claude/projects/_work--<프로젝트디렉토리명>` 심링크가 필요하다. `scripts/link_work_projects.sh`(매일 08:40 launchd)가 갱신하고 끊어진 링크도 정리한다. 상세 제약은 아래 「주의」 참고. **⚠️ 한시적 — 2026-08-11에 설정을 `~/.claude`로 통일하면 스크립트·plist·`_work--*` 링크를 전부 제거할 것**(제거 절차는 스크립트 헤더 주석). 현재 링크 확인: `command ls -l ~/.claude/projects | grep _work--`
 - **memory-tick** (`skills/memory-tick/`) — Stop hook 30분 스로틀로 인사이트 자동 저장, SessionStart hook으로 인덱스 주입.
-  - **스킬 배치 경로가 2단이다**: `~/.claude/skills`와 `~/.claude-work/skills`가 둘 다 `~/.agents/skills`로 symlink돼 있고, 그 안의 `memory-tick`이 이 레포로 symlink된다. 즉 레포 = 유일한 원본이고 개인용·업무용이 같은 실체를 본다.
+  - **스킬 배치 경로가 2단이다**: `~/.claude/skills`가 `~/.agents/skills`로 symlink돼 있고, 그 안의 `memory-tick`이 이 레포로 symlink된다. 즉 레포 = 유일한 원본이다.
   - ⚠️ **2026-07-30까지 이게 symlink가 아니라 07-09에 멈춘 복사본이었다.** 그래서 레포의 스킬 개선(`근거 표기` 섹션 등)이 실제 세션에는 한 번도 반영되지 않았고, 볼트 이전 때 구 경로가 남아 다음 세션이 마이그레이션된 폴더에 쓸 위험이 있었다. 옛 복사본은 `~/.agents/archive/skills-memory-tick-20260730`에 보관. **교훈 — 훅 커맨드가 레포 절대경로를 가리키는 것과 스킬 본문(SKILL.md)이 레포를 가리키는 것은 별개다.** 훅이 정상 동작하는 것만 보고 스킬 본문도 최신이라고 가정하면 안 된다. 검증: `readlink -f ~/.claude/skills/memory-tick/SKILL.md`
 - **MCP 레이어** (`scripts/`) — 훅이 없는 CLI(agy·codex 등)를 메모리에 붙이는 CLI 독립 배선. 셋 다 표준 라이브러리만 쓰고 `--selftest`가 내장돼 있다.
   - `memory_mcp.py` — 볼트 읽기/쓰기 MCP 서버. `memory_get()`(인자 없으면 인덱스, 이름 주면 노트 전문) + `memory_save(kind, slug, description, body, tags)`. 쓰기는 memory-tick 포맷을 고정하고 `scrub/scrub_secrets.py`의 패턴을 **import해서** 쓰기 직전에 마스킹한다(import 실패 시 서버가 안 뜬다 — 평문으로 쓰는 것보다 시끄럽게 죽는 게 낫다). **읽기 툴이 필요한 이유**: secall이 인덱싱하는 건 `raw/.sessions/`뿐이고 `memory/*.md`는 대상이 아니다. 저장 트리거는 훅이 없으니 `~/.claude/CLAUDE.md`(=`~/.gemini/GEMINI.md` 심링크)의 「개인 메모리」 절이 담당한다
   - `mcp_shim.py` — agy가 `initialize` 전에 보내는 비표준 `server/discover`를 가로채 `-32601`로 답하는 stdio 프록시. 엄격한 서버(secall이 쓰는 rmcp)는 이 요청에 연결을 끊는다. **직접 만드는 MCP 서버는 모르는 메서드에 에러만 돌려주고 연결은 유지하도록 짜면** 이 방언에 무료로 면역이 된다
   - `mcp_http_bridge.py` — stdio만 받는 클라이언트(Claude 데스크톱 앱)를 공유 HTTP 서버에 붙이는 브릿지. 모델을 로드하지 않아 RSS 6MB
 - **launchd** — 아래 「적용 중인 launchd 잡」 참고
-- **시크릿 마스킹** (`scrub/`) — 3중 방어: ① PreToolUse 훅 `block_env_dump.py`가 `.env` 값 덤프를 세션에서 차단 (`~/.claude/settings.json` 등록) ② `scrub_secrets.py`가 매일 08:45(sync 15분 전) 로컬 세션 JSONL에서 시크릿 패턴·`<private>` 스팬을 마스킹 — 로컬 파일만 만지므로 FDA 불필요. 스캔 루트는 `DEFAULT_ROOTS` 2개(`~/.claude/projects` + `~/.claude-work/projects`)로, 업무용이 빠지면 `GITLAB_TOKEN` 류가 마스킹 없이 볼트로 올라간다(2026-07-30 실측: 업무용 34파일 중 4파일에 시크릿 14건). `_work--` 심링크 때문에 같은 inode를 두 번 스캔하지만 마스킹은 멱등이라 무해하며, 심링크가 사라져도 커버리지가 유지되도록 두 루트를 일부러 남겨둔다 ③ memory-tick 스킬에 시크릿 저장 금지 규칙. 수동 점검: `python3 scrub/scrub_secrets.py --report`, vault 백필: `--paths <vault>/raw <vault>` (값 미출력, 룰명×개수만 로그). 셀프테스트: `python3 scrub/test_scrub.py`
+- **시크릿 마스킹** (`scrub/`) — 3중 방어: ① PreToolUse 훅 `block_env_dump.py`가 `.env` 값 덤프를 세션에서 차단 (`~/.claude/settings.json` 등록) ② `scrub_secrets.py`가 매일 08:45(sync 15분 전) 로컬 세션 JSONL에서 시크릿 패턴·`<private>` 스팬을 마스킹 — 로컬 파일만 만지므로 FDA 불필요. 스캔 루트는 `DEFAULT_ROOTS` = `~/.claude/projects` 하나다(2026-08-11 설정 통일 전엔 `~/.claude-work/projects`도 포함했다 — 업무 세션엔 `GITLAB_TOKEN` 류가 실제로 들어 있었다. 2026-07-30 실측: 34파일 중 4파일에 14건). **업무 세션을 다른 루트에 쌓는 구성으로 되돌린다면 루트 추가를 잊지 말 것** ③ memory-tick 스킬에 시크릿 저장 금지 규칙. 수동 점검: `python3 scrub/scrub_secrets.py --report`, vault 백필: `--paths <vault>/raw <vault>` (값 미출력, 룰명×개수만 로그). 셀프테스트: `python3 scrub/test_scrub.py`
 
 ## 적용 중인 launchd 잡
 
-레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-08-03 기준 5개 + 상주 1개가 로드돼 있고 레포 원본과 내용이 일치한다(전수 점검: 모든 잡 마지막 종료 코드 0, `job-monitor`도 `0 failing`).
+레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-08-11 기준 4개 + 상주 1개가 로드돼 있고 레포 원본과 내용이 일치한다(전수 점검: 모든 잡 마지막 종료 코드 0, `job-monitor`도 `0 failing`).
 
 | 시각 | Label | 실행 | 로그 |
 |---|---|---|---|
-| 매일 08:40 | `com.max.claude-work-links` | `/bin/sh scripts/link_work_projects.sh` | `/tmp/claude-work-links.{log,err}` |
 | 매일 08:45 | `com.max.secall-scrub` | `/usr/bin/python3 scrub/scrub_secrets.py` | `/tmp/secall-scrub.{log,err}` |
 | 매일 09:00 | `com.max.secall-sync` | `secall sync --no-embed --no-wiki` | `/tmp/secall-sync.{log,err}` |
 | 매주 화 13:00 | `com.max.secall-wiki` | `secall wiki update --backend claude --no-pull` (+`CLAUDE_CODE_PRINT_BG_WAIT_CEILING_MS=0`) | `/tmp/secall-wiki.{log,err}` |
@@ -53,7 +51,7 @@
 
 **실행 방식이 두 부류로 갈린다:**
 - **볼트를 만지는 잡**(sync·wiki)은 `~/.local/bin/secall`을 **직접 exec**해야 한다. launchd 잡의 TCC 권한은 실행 바이너리에 귀속되므로 `/bin/zsh -c` 래퍼를 쓰면 zsh에 전체 디스크 접근(FDA)을 줘야 한다. `~/.local/bin/secall`에 FDA 1회 등록으로 해결돼 있다. `~/.zshenv`를 안 거치므로 `KIWI_LIBRARY_PATH`/`KIWI_MODEL_PATH`/`ORT_DYLIB_PATH`를 plist의 `EnvironmentVariables`에 직접 넣는다 — 특히 `ORT_DYLIB_PATH`가 없으면 `embedding.backend=ort` 상태에서 sync가 패닉으로 죽는다.
-- **로컬 파일만 만지는 잡**(scrub·claude-work-links)은 FDA가 필요 없어 `/usr/bin/python3`·`/bin/sh` 래퍼를 써도 된다.
+- **로컬 파일만 만지는 잡**(scrub 등)은 FDA가 필요 없어 `/usr/bin/python3`·`/bin/sh` 래퍼를 써도 된다.
 
 **상태 확인**: `launchctl list | grep com.max` — 두 번째 컬럼이 마지막 종료 코드다(`0`이 정상, `-9`는 SIGKILL). 1회 강제 실행은 `launchctl kickstart -k gui/$(id -u)/<Label>`. plist를 고친 뒤엔 `~/Library/LaunchAgents/`로 다시 복사하고 `launchctl bootout` → `bootstrap` 해야 반영된다.
 
@@ -101,14 +99,10 @@
 - **`secall log`는 안 쓴다** — `secall log [YYYY-MM-DD]`는 그날 세션들을 LLM에 넣어 **일일 작업일기**를 산문으로 생성하는 기능이다. wiki/recall과 기능이 겹치고 매일 토큰을 태울 가치가 없다고 판단해 자동화하지 않았다(launchd 잡 없음). `log.backend = "disabled"`는 허용값이 아닐 가능성이 높지만 자동 호출 경로가 없어 무해하다 — 언젠가 손으로 쓸 일이 생기면 `--backend claude`를 주면 된다.
   - ⚠️ **볼트 최상위 `log.md`와 헷갈리지 말 것.** 그건 이 기능의 산출물이 아니라 seCall이 ingest할 때마다 자동으로 쌓는 수집 기록(`type: log`, "seCall Ingest Log", 세션 ID·turns·tokens·파일경로)이고 LLM을 쓰지 않는다. `secall log` 산출물이 어디로 떨어지는지는 **미확인**(한 번도 실행한 적 없어 흔적이 없다).
 - 토크나이저는 kiwi로 설정되어 있으나 기존 216세션 인덱스는 upstream 버그로 인한 재구축 리스크(git_branch 유실) 때문에 lindera 톤화 상태로 남아있음 — 신규 질의는 kiwi, 기존 인덱스는 lindera 혼용. 기능엔 지장 없음 (자세한 내용: `.superpowers/sdd/task-2-report.md`)
-- **업무용(`~/.claude-work`) 세션 수집 — 경로 제약 3종 (2026-07-30 실측)**: 업무용 config dir 세션은 그냥은 절대 수집되지 않는다. 원인이 셋이고 전부 seCall 바이너리에 하드코딩돼 있어 config.toml로는 못 바꾼다.
-  1. **포맷 감지가 경로 문자열 기반이다.** 동일 파일을 `~/.claude-work/projects/…`에 두면 `unknown session format`으로 실패하고, `~/.claude/projects/…`로 복사하면 정상 ingest된다(내용은 무관). 감지 앵커는 `/.claude/projects/`, `/.codex/sessions/`, `/.gemini/`.
-  2. **`--auto` 스캔 깊이는 `projects/<프로젝트디렉토리>/*.jsonl` 딱 한 단계다.** 그래서 `projects/_work/<프로젝트디렉토리>/x.jsonl`처럼 한 단계 깊으면 못 본다. 부수적으로 발견된 사실 — `projects/<projdir>/<uuid>/subagents/*.jsonl`(개인용 256개)도 같은 이유로 **한 번도 인덱스된 적 없다**. 서브에이전트 트랜스크립트는 사실상 수집 대상 밖(파생 노이즈라 의도적 방치로 두는 중).
-  3. **심링크는 depth 1에서만 따라간다.** `projects/_work → ~/.claude-work/projects` 같은 상위 심링크는 `--auto`가 무시하지만, `projects/_work--<projdir> → ~/.claude-work/projects/<projdir>`처럼 **프로젝트 디렉토리 자체를 depth 1 형제로** 걸면 정상 수집된다. 디렉토리명은 겉치레일 뿐 — seCall은 프로젝트명을 jsonl 안의 `cwd`에서 뽑는다.
-
-  채택한 형태: `~/.claude-work/projects`는 실체로 그대로 두고(`projects/`는 심링크 금지 대상), `~/.claude/projects/_work--<projdir>` 심링크만 건다. 링크 갱신은 `scripts/link_work_projects.sh`(매일 08:40, `com.max.claude-work-links`)가 맡는다 — 새 업무 프로젝트 디렉토리를 링크하고 사라진 것의 끊어진 링크를 지운다. **대안으로 검토했다 기각한 것 둘**: ① 별도 `secall ingest <dir>` launchd 잡 — `ingest`는 **새로 넣은 게 0이면 에러가 없어도 항상 exit 1**이라 조용한 날마다 실패로 보여 진짜 실패를 가린다 ② 레이아웃 스왑(`~/.claude-work/projects` 실체를 `~/.claude/projects/_work`로 옮기고 심링크 역방향) — 위 ②번 깊이 제약에 걸려 **작동하지 않는다**(실제로 해보고 되돌림).
-
-  스크립트 자체의 함정 하나: `"$linked개"`처럼 변수 바로 뒤에 한글이 붙으면 bash가 멀티바이트를 변수명의 일부로 먹어 `unbound variable`이 난다 — `${linked}개`로 중괄호를 쓸 것. `set -u`가 없었으면 빈 문자열로 조용히 넘어갔다.
+- **세션 수집 경로 제약 (2026-07-30 실측, 전부 seCall 바이너리 하드코딩이라 config.toml로 못 바꾼다)**
+  1. **포맷 감지가 경로 문자열 기반이다.** 앵커는 `/.claude/projects/`, `/.codex/sessions/`, `/.gemini/`. `CLAUDE_CONFIG_DIR`로 config dir를 옮기면 내용이 같아도 `unknown session format`으로 실패한다. **`~/.claude` 하나로 통일한(2026-08-11) 이유 중 하나** — 그전엔 `~/.claude/projects/_work--<projdir>` 심링크로 우회했다. 업무용 config dir를 다시 쓸 일이 생기면 이 제약부터 떠올릴 것.
+  2. **`--auto` 스캔 깊이는 `projects/<프로젝트디렉토리>/*.jsonl` 딱 한 단계고, 심링크도 그 depth 1 자리에서만 따라간다.** 그래서 `projects/<projdir>/<uuid>/subagents/*.jsonl`은 **한 번도 인덱스된 적 없다**. 서브에이전트 트랜스크립트는 사실상 수집 대상 밖(파생 노이즈라 의도적 방치).
+  3. 우회로 검토했다 **기각한 것**: 별도 `secall ingest <dir>` launchd 잡 — `ingest`는 **새로 넣은 게 0이면 에러가 없어도 항상 exit 1**이라 조용한 날마다 실패로 보여 진짜 실패를 가린다.
 - **임베딩은 메모리 제약이 병목이다 (2026-07-30 실측)**: 이 맥은 RAM 16GB인데 bge-m3 ONNX 모델이 **2.1GB**다. Slack·Notion·Podman VM·Hermes·Claude Code가 올라간 상태에서 임베딩을 돌리면 스왑이 포화되고(실측: 33.8GB 중 **32.9GB 사용**, pageouts 319,606) 프로세스가 `U`(중단 불가 I/O 대기) 상태로 CPU 12%만 쓰며 사실상 멈춘다. **5턴짜리 세션이 4분 넘게 진행되지 않는 것**을 관측했다 — 정체가 아니라 `model.onnx_data` mmap 페이지인이 스왑을 때리는 것이다.
   - **iCloud와 무관하다.** 임베딩 쓰기 경로는 `~/Library/Caches/secall/index.sqlite`(로컬)라 볼트 이전으로 해결되지 않는다. 볼트 이전이 고친 것은 sync/lint/reindex의 vault **읽기** 지연이다(lint 2분 타임아웃 → 0초).
   - **secall 프로세스를 둘 이상 동시에 돌리지 말 것** — 각각 모델을 따로 로드해 2.1GB씩 먹는다. `secall sync`(ingest 단계에서 임베딩함)와 `secall embed`를 겹쳐 돌리면 확실히 스래싱한다.

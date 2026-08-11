@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """세션 아카이브 시크릿 스크러버.
 
-Claude Code 로컬 세션 JSONL(~/.claude/projects + ~/.claude-work/projects)에서
+Claude Code 로컬 세션 JSONL(~/.claude/projects)에서
 시크릿 패턴과 <private>...</private> 스팬을 마스킹한다. secall sync(09:00)가
 읽기 전인 08:45에 launchd로 실행되므로 하류(vault/raw/FTS 인덱스)에 평문이 안 남는다.
 
@@ -11,7 +11,7 @@ Claude Code 로컬 세션 JSONL(~/.claude/projects + ~/.claude-work/projects)에
 - 진행 중 세션 보호: 최근 30분 내 수정된 파일은 건너뜀 (다음 실행에서 처리)
 
 사용:
-    scrub_secrets.py                      # 기본: 개인용+업무용 세션 루트 스캔+마스킹
+    scrub_secrets.py                      # 기본: 세션 루트 스캔+마스킹
     scrub_secrets.py --report             # 마스킹 없이 개수만 보고
     scrub_secrets.py --paths DIR [DIR..]  # 지정 경로 스캔 (vault 백필용, 상태/나이 필터 없음)
 """
@@ -26,13 +26,12 @@ import time
 from collections import Counter
 from pathlib import Path
 
-# 개인용(~/.claude)과 업무용(CLAUDE_CONFIG_DIR=~/.claude-work) 세션 루트 둘 다.
-# 업무용이 빠지면 GITLAB_TOKEN 류가 마스킹 없이 vault(iCloud)로 올라간다.
+# 2026-08-11 설정 통일 전까지는 업무용(~/.claude-work/projects)도 함께 스캔했다.
+# 이제 업무 세션도 여기 쌓이므로 루트는 하나뿐 — 리스트 형태는 유지한다(백필 확장 여지).
 DEFAULT_ROOTS = [
     Path.home() / ".claude" / "projects",
-    Path.home() / ".claude-work" / "projects",
 ]
-# 상태는 절대경로 키라 두 루트를 한 파일에서 같이 추적해도 안전하다.
+# 상태는 절대경로 키다.
 STATE_FILE = Path.home() / ".claude" / "scrub_state.json"
 MIN_AGE_SECONDS = 30 * 60  # 진행 중 세션 append와의 경쟁 회피
 
