@@ -1,0 +1,57 @@
+{
+  "schema_version": 1,
+  "budget_method": "utf8-byte-v1",
+  "budget_limit": 2048,
+  "entries": [
+    {
+      "id": "K1",
+      "source_notes": [
+        "feedback_archive-over-delete-personal-config.md"
+      ],
+      "body": "git 미추적 개인 설정·파일을 정리할 때는 삭제보다 archive/ 이동을 기본으로 제안하고 복원 방법을 남긴다.",
+      "approved_on": "2026-09-11",
+      "approval_ref": "docs/memory-retrieval-core-review.md#확인-기록",
+      "scope": "global",
+      "status": "confirmed",
+      "scope_inferred": false
+    },
+    {
+      "id": "K2",
+      "source_notes": [
+        "feedback_repo-claude-md-symlink-conversion.md",
+        "feedback_git-checkout-branch-dashdash-dot-footgun.md"
+      ],
+      "body": "내가 만들지 않은 워킹트리 변경은 보존한다. 원인을 단정해 되돌리지 않는다. 다른 ref 조회는 diff/log/show로 하고, 미커밋 변경이 있는 뮤테이션 테스트의 원복은 작업 전 파일 백업으로 한다.",
+      "approved_on": "2026-09-11",
+      "approval_ref": "docs/memory-retrieval-core-review.md#확인-기록",
+      "scope": "global",
+      "status": "confirmed",
+      "scope_inferred": false
+    },
+    {
+      "id": "K3",
+      "source_notes": [
+        "feedback_plan-authored-tests-vacuous.md",
+        "feedback_mr-review-response-verification.md"
+      ],
+      "body": "계획서의 테스트와 완료 보고를 실행 검증으로 간주하지 않는다. 테스트 실효성이 의심되면 결함을 넣었을 때 실제로 실패하는지 확인한다.",
+      "approved_on": "2026-09-11",
+      "approval_ref": "docs/memory-retrieval-core-review.md#확인-기록",
+      "scope": "global",
+      "status": "confirmed",
+      "scope_inferred": false
+    },
+    {
+      "id": "K4",
+      "source_notes": [
+        "feedback_env-token-debugging.md"
+      ],
+      "body": "인증 정보를 출력해 확인하지 않는다. 토큰 유효성은 허용된 인증 요청의 성공·실패로 확인하고, 환경·설정 출력에 비밀값이 섞이지 않게 한다.",
+      "approved_on": "2026-09-11",
+      "approval_ref": "docs/memory-retrieval-core-review.md#확인-기록",
+      "scope": "global",
+      "status": "confirmed",
+      "scope_inferred": false
+    }
+  ]
+}
