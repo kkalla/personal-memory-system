@@ -29,5 +29,17 @@ class Restoration(unittest.TestCase):
             self.assertTrue(result['collision']['pass'])
             self.assertFalse((root/'config').exists())
 
+    def test_absolute_workspace_paths_are_relocated_only_in_copy(self):
+        from validate_memory_restoration import check_restoration
+        with tempfile.TemporaryDirectory() as temp:
+            root=Path(temp);(root/'archive').mkdir();(root/'config').mkdir()
+            (root/'archive/item').write_text('original')
+            commands=[['mv','-n',str(root/'archive/item'),str(root/'config/item')]]
+            result=check_restoration(root,commands,'archive/item','config/item',relocate_workspace=True)
+            self.assertTrue(result['absent']['pass'])
+            self.assertTrue(result['collision']['pass'])
+            self.assertFalse((root/'config/item').exists())
+            self.assertEqual((root/'archive/item').read_text(),'original')
+
 
 if __name__=='__main__':unittest.main()

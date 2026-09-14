@@ -1,5 +1,7 @@
 # T4 scope/status 보강 검증 — 2026-09-14
 
+후속 복원 보강과 전체 회귀는 [최신 검증 기록](memory-retrieval-t4-restoration-validation.md)에 기록한다. 아래 결과는 당시 구성의 기록으로 보존한다.
+
 기준 e9eb736. [이번 실행 계획](superpowers/plans/2026-09-14-memory-retrieval-t4-scope-status-plan.md)에 따라 집중·보충 검증을 완료했다. 기존 [집중 회귀](memory-retrieval-t4-followup-validation.md)의 MR-003 실패를 보존한다.
 
 ## 변경과 검증 경계

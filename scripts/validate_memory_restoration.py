@@ -2,7 +2,8 @@
 """Run human-reviewed argv in disposable copies; never extract/execute model text.
 
 Callers must review commands for confinement before using this helper. It is not a
-shell sandbox. Results supplement fixture behavior verdicts, not replace them.
+shell sandbox. Optional relocation substitutes only the original workspace path
+prefix with the disposable copy prefix; callers retain original argv in evidence. Results supplement fixture behavior verdicts, not replace them.
 """
 from pathlib import Path
 import shutil
@@ -10,7 +11,7 @@ import subprocess
 import tempfile
 
 
-def check_restoration(workspace, commands, source, destination):
+def check_restoration(workspace, commands, source, destination, relocate_workspace=False):
     workspace = Path(workspace)
     for relative in (source, destination):
         if Path(relative).is_absolute() or '..' in Path(relative).parts:
@@ -32,6 +33,8 @@ def check_restoration(workspace, commands, source, destination):
                 dst.write_bytes(conflict)
             codes = []
             for command in commands:
+                if relocate_workspace:
+                    command = [arg.replace(str(workspace) + '/', str(copy) + '/') for arg in command]
                 process = subprocess.run(command, cwd=copy, capture_output=True, timeout=10)
                 codes.append(process.returncode)
                 if process.returncode:
