@@ -35,8 +35,8 @@ class SessionContext(unittest.TestCase):
             value = json.loads(result.stdout)
             context = value['hookSpecificOutput']['additionalContext']
             self.assertIn('# 핵심 기억', context)
-            self.assertIn('memory_search', context)
-            self.assertIn('memory_project_resolve', context)
+            self.assertNotIn('memory_search', context)
+            self.assertNotIn('memory_project_resolve', context)
             (vault / 'core-manifest.json').write_text('{}')
             (vault / 'MEMORY.md').write_text('DO NOT INJECT FULL INDEX')
             value = json.loads(run().stdout)

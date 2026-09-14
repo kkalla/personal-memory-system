@@ -1,5 +1,7 @@
 # T4 환경 연결·모델 회귀 중간 기록 — 2026-09-14
 
+후속 보강과 Sonnet 5 high 최종 회귀는 [2026-09-14 보강 검증 기록](memory-retrieval-t4-remediation-validation.md)을 참고한다. 아래 최초 실행 결과는 변경하지 않았다.
+
 상태: **44세션 실행·판정 완료, 성공 기준 미충족으로 보강 필요**. 최신 결과는 아래 「Keychain 인증 확인 후 전체 평가 완료」를 기준으로 하며 앞선 실행 기록은 보존한다. 현재 브랜치 `docs/memory-retrieval-handoff`에 T3 `64764d1`을 fast-forward하고, Orca 워크트리의 미커밋 T4 파일 6개를 원본 보존 상태로 가져왔다. 실제 볼트·전역 CLI 설정·launchd에는 설치하지 않았다.
 
 ## 실행 승인과 범위

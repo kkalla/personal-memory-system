@@ -26,6 +26,26 @@ class Preparation(unittest.TestCase):
             self.assertEqual(len(evaluation.plan(suite)['runs']), 44)
             self.assertEqual(evaluation.plan(suite)['user_turns'], 52)
 
+    def test_snapshot_preserves_directory_removal_evidence(self):
+        import evaluate_memory_retrieval as evaluation
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            workspace, vault = root / 'workspace', root / 'vault'
+            workspace.mkdir()
+            vault.mkdir()
+            source = workspace / 'config'
+            source.mkdir()
+            (source / 'settings').write_text('restore-data')
+            before = evaluation.snapshot_state(workspace, vault)
+            archive = workspace / 'archive'
+            archive.mkdir()
+            (source / 'settings').rename(archive / 'settings')
+            source.rmdir()
+            after = evaluation.snapshot_state(workspace, vault)
+            self.assertEqual(before['directories']['workspace'], ['config'])
+            self.assertEqual(after['directories']['workspace'], ['archive'])
+            self.assertEqual(after['workspace'], {'archive/settings': 'restore-data'})
+
 
 class LaunchIsolation(unittest.TestCase):
     def test_runtime_home_contains_only_auth_and_reviewed_hooks(self):
@@ -43,6 +63,51 @@ class LaunchIsolation(unittest.TestCase):
                 self.assertFalse((home / 'AGENTS.md').exists())
                 filename = 'hooks.json' if environment == 'codex' else 'settings.json'
                 self.assertEqual(json.loads((home / filename).read_text())['hooks'], hooks)
+
+    def test_recall_launch_delivers_procedure_in_system_instructions(self):
+        import subprocess
+        from unittest.mock import patch
+        import evaluate_memory_retrieval as evaluation
+        launches = []
+        claude_settings = []
+        original_run = subprocess.run
+
+        def cli(command, **kwargs):
+            if command[0] not in ('claude', 'codex'):
+                return original_run(command, **kwargs)
+            if '--version' in command:
+                return subprocess.CompletedProcess(command, 0, stdout='test-cli', stderr='')
+            launches.append(command)
+            if command[0] == 'claude':
+                claude_settings.append(json.loads(Path(command[command.index('--settings') + 1]).read_text()))
+            events = ([{'type': 'system', 'session_id': 'test-session'},
+                       {'type': 'result', 'subtype': 'success', 'is_error': False}]
+                      if command[0] == 'claude' else
+                      [{'type': 'thread.started', 'thread_id': 'test-session'},
+                       {'type': 'turn.completed'}])
+            return subprocess.CompletedProcess(command, 0,
+                stdout='\n'.join(json.dumps(event) for event in events), stderr='')
+
+        with tempfile.TemporaryDirectory() as tmp:
+            root = Path(tmp)
+            for folder, filename in [('.claude', '.credentials.json'), ('.codex', 'auth.json')]:
+                (root / folder).mkdir()
+                (root / folder / filename).write_text('test-only')
+            suite = evaluation.load_suite()
+            with patch.object(Path, 'home', return_value=root), patch.object(subprocess, 'run', side_effect=cli):
+                for environment in ('claude-code', 'codex'):
+                    evaluation.run_case(root / environment, suite['cases'][0],
+                        evaluation.project_mapping(suite), 'recall-integration', environment)
+        claude, codex = launches
+        self.assertEqual(claude_settings[0]['hooks']['PreToolUse'][0]['matcher'],
+                         'mcp__memory__memory_search')
+        contexts = [claude[claude.index('--append-system-prompt') + 1],
+                    json.loads(next(arg.split('=', 1)[1] for arg in codex
+                                    if arg.startswith('developer_instructions=')))]
+        for context in contexts:
+            self.assertIn('memory_project_resolve', context)
+            self.assertIn('memory_search', context)
+            self.assertNotIn('git 미추적 개인 설정·파일을 정리할 때는', context)
 
 class ExecutionEvidence(unittest.TestCase):
     def test_exit_zero_without_completed_turn_is_not_execution_success(self):

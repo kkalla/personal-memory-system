@@ -87,3 +87,13 @@ git diff --check
 ```
 
 CLI는 읽기 전용이다. 구조가 유효하면 exit 0과 `STRUCTURE PASS: N cases; agent behavior NOT RUN; recall integration NOT RUN`을 출력한다. 잘못된 파일·JSON·계약은 exit 1과 stderr의 `STRUCTURE FAIL: 필드 경로: 이유`로 거부한다(파일·JSON 구문 오류는 해당 파서 진단). 인자 사용법 오류는 argparse의 exit 2다. 검증은 첫 오류에서 종료한다. 출처 파일 존재나 내용의 사실성, 자연어 기준의 충분성, 실제 에이전트 행동은 구조 검증의 대상이 아니다.
+
+
+## 2026-09-14 입력 명확화 기록
+
+보강 계획의 권장 경로안에 대한 진행 승인으로 archive-config 사전 기억에 대상 설정 디렉터리 내부를 명시했다. MR-001/007/009의 기대·금지 행동, ID, 환경은 그대로이며 입력의 누락된 기준을 명확히 한 개정이다. source_notes.adaptation에 합성/개정 근거를 남겼다. 이전 결과를 다시 채점해 통과로 바꾸지 않는다.
+
+- 이전 fixture SHA-256: `4a6b3e727f72374e67fda50acaf9b203f612ab750e663e4f2ec1ba59e914c908`
+- 현재 fixture SHA-256: `48cf67fb1cde05ba4e4ad7fe0d542d6b4959bf13109989462c10e3c30054881d`
+- 초기·high/P1/P2 비교는 이전 SHA, 최종 전체 회귀는 현재 SHA다. 전체 회귀와 초기 실행을 같은 입력의 순수 지침 효과 비교라고 하지 않는다.
+- 고정 경로와 별도로 복원 안내를 workspace 복제본에서 검토·실행해 원래 경로와 내용을 확인한다. 원시 실행 파일은 사후 변경하지 않는다.

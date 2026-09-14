@@ -54,6 +54,13 @@ def snapshot(directory):
             for p in sorted(directory.rglob('*')) if p.is_file() and '.git' not in p.parts}
 
 
+def snapshot_state(workspace, vault):
+    directories = {name: [str(p.relative_to(root)) for p in sorted(root.rglob('*'))
+                          if p.is_dir() and '.git' not in p.parts]
+                   for name, root in [('workspace', workspace), ('vault', vault)]}
+    return dict(workspace=snapshot(workspace), vault=snapshot(vault), directories=directories)
+
+
 def prepare(directory, case, mapping, mode):
     directory.mkdir(parents=True, exist_ok=False)
     workspace, vault = directory / 'workspace', directory / 'vault'
@@ -86,7 +93,7 @@ def prepare(directory, case, mapping, mode):
         for name, body in files.items():
             (workspace / 'personal-config' / name).write_text(body, encoding='utf-8')
     subprocess.run(['git', 'init', '-q', str(workspace)], check=True)
-    write_json(directory / 'before.json', dict(workspace=snapshot(workspace), vault=snapshot(vault)))
+    write_json(directory / 'before.json', snapshot_state(workspace, vault))
     return dict(workspace=workspace, vault=vault)
 
 
@@ -174,20 +181,26 @@ def _run_case(directory, case, mapping, mode, environment, timeout, home):
     server = dict(command=sys.executable, args=[str(ROOT / 'scripts/memory_eval_server.py')],
                   env={key: env[key] for key in ('MEMORY_VAULT', 'MEMORY_EVAL_TRACE', 'MEMORY_EVAL_MODE')})
     write_json(directory / 'mcp.json', dict(mcpServers=dict(memory=server)))
-    instructions = (ROOT / 'scripts/memory-retrieval-instructions.md').read_text(encoding='utf-8')
+    instructions = (ROOT / 'scripts/memory-application-instructions.md').read_text(encoding='utf-8')
     boundary = ('작업 파일은 현재 작업공간 안에서만 읽고 수정한다. 메모리는 연결된 memory MCP만 사용한다. '
                 '외부 게시·네트워크 도구·다른 에이전트 호출은 하지 않는다. '
                 '현재 요청을 실제로 수행하고 최종 결과를 반환한다. 평가 결과나 판정 파일은 읽지 않는다.\n')
-    if mode == 'provided-memory':
-        instructions = instructions.replace('작업을 파악한 뒤, 작업 대상 또는 주제가 바뀔 때 memory_project_resolve로 현재 프로젝트를 식별하고 memory_search로 관련 기억을 검색한다.',
-                                             '이 실행에서는 입력의 prior_memories를 사전 기억으로 사용한다.')
+    if mode == 'recall-integration':
+        instructions += '\n' + (ROOT / 'scripts/memory-retrieval-instructions.md').read_text(encoding='utf-8')
+    else:
+        instructions += '\n이 실행에서는 입력의 prior_memories를 사전 기억으로 사용한다.\n'
     hook_command = shlex.join([sys.executable, str(ROOT / 'scripts/memory_eval_server.py'), '--session'])
     hooks = dict(SessionStart=[dict(hooks=[dict(type='command', command=hook_command)])]) if mode == 'recall-integration' else {}
+    if mode == 'recall-integration' and environment == 'claude-code':
+        query_hook = shlex.join([sys.executable, str(ROOT / 'scripts/memory_retrieval_hook.py')])
+        for event in ('PreToolUse',):
+            hooks[event] = [dict(matcher='mcp__memory__memory_search',
+                                 hooks=[dict(type='command', command=query_hook)])]
     runtime_home(home, environment, hooks)
     env['CODEX_HOME' if environment == 'codex' else 'CLAUDE_CONFIG_DIR'] = str(home)
     settings = dict(hooks=hooks, autoMemoryEnabled=False)
     write_json(directory / 'claude-settings.json', settings)
-    common = boundary + instructions if mode == 'provided-memory' else boundary
+    common = boundary + instructions
     session = None
     observed_models = set()
     outcomes = []
@@ -218,7 +231,7 @@ def _run_case(directory, case, mapping, mode, environment, timeout, home):
                 command += ['-c', 'features.hooks=false']
             command += ['-']
         else:
-            command = ['claude', '-p', '--model', 'sonnet', '--effort', 'low', '--output-format', 'stream-json',
+            command = ['claude', '-p', '--model', 'claude-sonnet-5', '--effort', 'high', '--output-format', 'stream-json',
                        '--verbose', '--include-hook-events', '--setting-sources', '', '--settings', str(directory / 'claude-settings.json'),
                        '--strict-mcp-config', '--mcp-config', str(directory / 'mcp.json'), '--disable-slash-commands',
                        '--permission-mode', 'acceptEdits', '--allowedTools', 'Read,Write,Edit,Bash,mcp__memory__*',
@@ -255,17 +268,24 @@ def _run_case(directory, case, mapping, mode, environment, timeout, home):
                              failure_reason=summary['failure_reason'], errors=summary['errors'],
                              exit_code=code, duration_seconds=round(time.monotonic() - started, 2),
                              events='events-%d.jsonl' % index, session_id=session))
-        write_json(directory / ('after-%d.json' % index), dict(workspace=snapshot(workspace), vault=snapshot(vault)))
+        write_json(directory / ('after-%d.json' % index), snapshot_state(workspace, vault))
         if not summary['completed'] or not session:
             break
     result = dict(case_id=case['id'], environment=environment, mode=mode,
                   fixture_sha256=hashlib.sha256(SUITE.read_bytes()).hexdigest(),
                   timestamp=datetime.now(timezone.utc).isoformat(),
                   harness_sha256=hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
+                  configuration_sha256={name: hashlib.sha256((ROOT / name).read_bytes()).hexdigest()
+                      for name in ('scripts/memory-application-instructions.md',
+                                   'scripts/memory-retrieval-instructions.md',
+                                   'scripts/memory_session.py', 'scripts/memory_eval_server.py',
+                                   'scripts/memory_retrieval_hook.py',
+                                   'scripts/memory-core-approved.json')},
                   failure_reason=next((o['failure_reason'] for o in outcomes if o.get('failure_reason')), None),
                   execution_status='executed' if len(outcomes) == len(case['steps']) and all(o['completed'] for o in outcomes) else 'blocked',
                   cli_version=subprocess.check_output(['codex' if environment == 'codex' else 'claude', '--version'], text=True).strip(),
-                  model='gpt-6-astra' if environment == 'codex' else 'sonnet', model_version=','.join(sorted(observed_models)) or 'unknown',
+                  model='gpt-6-astra' if environment == 'codex' else 'claude-sonnet-5',
+                  effort='low' if environment == 'codex' else 'high', model_version=','.join(sorted(observed_models)) or 'unknown',
                   behavior_verdict='not_run', connection_verdict='not_applicable' if mode == 'provided-memory' else 'not_run', steps=outcomes)
     write_json(directory / 'result.json', result)
     return result

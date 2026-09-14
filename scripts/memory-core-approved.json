@@ -8,9 +8,9 @@
       "source_notes": [
         "feedback_archive-over-delete-personal-config.md"
       ],
-      "body": "git 미추적 개인 설정·파일을 정리할 때는 삭제보다 archive/ 이동을 기본으로 제안하고 복원 방법을 남긴다.",
-      "approved_on": "2026-09-11",
-      "approval_ref": "docs/memory-retrieval-core-review.md#확인-기록",
+      "body": "git 미추적 개인 설정·파일을 정리할 때는 삭제보다 대상 설정 디렉터리 내부의 archive/ 이동을 기본으로 하고, 내용과 실행 가능한 복원 방법을 보존한다.",
+      "approved_on": "2026-09-14",
+      "approval_ref": "docs/memory-retrieval-core-review.md#2026-09-14-경로-기준-구체화",
       "scope": "global",
       "status": "confirmed",
       "scope_inferred": false

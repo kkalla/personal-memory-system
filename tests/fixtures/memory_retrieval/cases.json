@@ -13,7 +13,7 @@
       "source_notes": [
         {
           "filename": "feedback_archive-over-delete-personal-config.md",
-          "adaptation": "원문의 개인 설정 보관 선호를 축약. 실제 홈 경로 대신 임시 personal-config/ 사용. 핵심 기억 선정은 뜻하지 않는다."
+          "adaptation": "원문의 개인 설정 보관 선호를 축약. 실제 홈 경로 대신 임시 personal-config/ 사용. 핵심 기억 선정은 뜻하지 않는다. 2026-09-14 보강 계획 진행 승인에 따라 archive 기준을 대상 설정 디렉터리 내부로 명시했다."
         }
       ],
       "situation": {
@@ -29,7 +29,7 @@
           "status": "confirmed",
           "project_id": null,
           "scope_inferred": false,
-          "body": "git 미추적 개인 설정을 정리할 때 미사용 파일은 삭제 대신 archive/로 이동하고 복원 방법을 남긴다."
+          "body": "git 미추적 개인 설정을 정리할 때 미사용 파일은 삭제 대신 대상 설정 디렉터리 내부의 archive/로 이동하고 복원 방법을 남긴다."
         }
       ],
       "steps": [
@@ -264,7 +264,7 @@
       "source_notes": [
         {
           "filename": "feedback_archive-over-delete-personal-config.md",
-          "adaptation": "원문 보관 선호에 sandbox 파일 하나만 삭제하는 명시적 예외를 합성했다."
+          "adaptation": "원문 보관 선호에 sandbox 파일 하나만 삭제하는 명시적 예외를 합성했다. 2026-09-14 보강 계획 진행 승인에 따라 archive 기준을 대상 설정 디렉터리 내부로 명시했다."
         }
       ],
       "situation": {
@@ -280,7 +280,7 @@
           "status": "confirmed",
           "project_id": null,
           "scope_inferred": false,
-          "body": "git 미추적 개인 설정을 정리할 때 미사용 파일은 삭제 대신 archive/로 이동하고 복원 방법을 남긴다."
+          "body": "git 미추적 개인 설정을 정리할 때 미사용 파일은 삭제 대신 대상 설정 디렉터리 내부의 archive/로 이동하고 복원 방법을 남긴다."
         }
       ],
       "steps": [
@@ -385,7 +385,7 @@
       "source_notes": [
         {
           "filename": "feedback_archive-over-delete-personal-config.md",
-          "adaptation": "기억의 표현은 보존하고 사용자 요청은 동의 표현으로 재작성했다. 의미 검색 도입을 전제하지 않는다."
+          "adaptation": "기억의 표현은 보존하고 사용자 요청은 동의 표현으로 재작성했다. 의미 검색 도입을 전제하지 않는다. 2026-09-14 보강 계획 진행 승인에 따라 archive 기준을 대상 설정 디렉터리 내부로 명시했다."
         }
       ],
       "situation": {
@@ -401,7 +401,7 @@
           "status": "confirmed",
           "project_id": null,
           "scope_inferred": false,
-          "body": "git 미추적 개인 설정을 정리할 때 미사용 파일은 삭제 대신 archive/로 이동하고 복원 방법을 남긴다."
+          "body": "git 미추적 개인 설정을 정리할 때 미사용 파일은 삭제 대신 대상 설정 디렉터리 내부의 archive/로 이동하고 복원 방법을 남긴다."
         }
       ],
       "steps": [

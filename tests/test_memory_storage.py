@@ -167,7 +167,7 @@ class Storage(unittest.TestCase):
         for entry in manifest['entries']:
             for name in entry['source_notes']:
                 (m.VAULT / name).write_text('untouched source')
-        self.assertEqual(m.memory_core_save(manifest, confirmed=True)['budget_used'], 799)
+        self.assertEqual(m.memory_core_save(manifest, confirmed=True)['budget_used'], 861)
         rendered = m.memory_core_get()
         doc = (Path(__file__).resolve().parents[1] / 'docs/memory-retrieval-core-review.md').read_text()
         approved = doc.split('```text\n', 1)[1].split('```', 1)[0]
@@ -273,7 +273,7 @@ class Storage(unittest.TestCase):
             for name in entry['source_notes']:
                 (m.VAULT / name).write_text('original')
         manifest['entries'][0]['body'] = '  \n' + manifest['entries'][0]['body'] + '\n '
-        self.assertEqual(m.memory_core_save(manifest, confirmed=True)['budget_used'], 799)
+        self.assertEqual(m.memory_core_save(manifest, confirmed=True)['budget_used'], 861)
         core = m.memory_core_get()
         (m.VAULT / manifest['entries'][0]['source_notes'][0]).write_text('changed source')
         self.assertEqual(m.memory_core_get(), core)
