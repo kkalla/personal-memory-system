@@ -69,6 +69,7 @@ class LaunchIsolation(unittest.TestCase):
         from unittest.mock import patch
         import evaluate_memory_retrieval as evaluation
         launches = []
+        state_paths = []
         claude_settings = []
         original_run = subprocess.run
 
@@ -78,6 +79,8 @@ class LaunchIsolation(unittest.TestCase):
             if '--version' in command:
                 return subprocess.CompletedProcess(command, 0, stdout='test-cli', stderr='')
             launches.append(command)
+            if command[0] == 'claude':
+                state_paths.append(Path(kwargs['env']['MEMORY_RETRIEVAL_STATE']))
             if command[0] == 'claude':
                 claude_settings.append(json.loads(Path(command[command.index('--settings') + 1]).read_text()))
             events = ([{'type': 'system', 'session_id': 'test-session'},
@@ -99,8 +102,10 @@ class LaunchIsolation(unittest.TestCase):
                     evaluation.run_case(root / environment, suite['cases'][0],
                         evaluation.project_mapping(suite), 'recall-integration', environment)
         claude, codex = launches
-        self.assertEqual(claude_settings[0]['hooks']['PreToolUse'][0]['matcher'],
-                         'mcp__memory__memory_search')
+        self.assertTrue(state_paths)
+        self.assertFalse(any(path.exists() for path in state_paths))
+        self.assertTrue({'UserPromptSubmit','PreToolUse','PostToolUse','PostToolUseFailure','Stop'} <= set(claude_settings[0]['hooks']))
+        self.assertIn('mcp__memory__memory_search', claude_settings[0]['hooks']['PreToolUse'][0]['matcher'])
         contexts = [claude[claude.index('--append-system-prompt') + 1],
                     json.loads(next(arg.split('=', 1)[1] for arg in codex
                                     if arg.startswith('developer_instructions=')))]

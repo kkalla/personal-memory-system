@@ -193,9 +193,12 @@ def _run_case(directory, case, mapping, mode, environment, timeout, home):
     hooks = dict(SessionStart=[dict(hooks=[dict(type='command', command=hook_command)])]) if mode == 'recall-integration' else {}
     if mode == 'recall-integration' and environment == 'claude-code':
         query_hook = shlex.join([sys.executable, str(ROOT / 'scripts/memory_retrieval_hook.py')])
-        for event in ('PreToolUse',):
-            hooks[event] = [dict(matcher='mcp__memory__memory_search',
-                                 hooks=[dict(type='command', command=query_hook)])]
+        env['MEMORY_RETRIEVAL_STATE'] = str(home.parent / 'retrieval-state')
+        for event in ('UserPromptSubmit', 'PreToolUse', 'PostToolUse', 'PostToolUseFailure', 'Stop'):
+            entry = dict(hooks=[dict(type='command', command=query_hook)])
+            if event in ('PreToolUse', 'PostToolUse', 'PostToolUseFailure'):
+                entry['matcher'] = 'mcp__memory__memory_search|mcp__memory__memory_project_resolve|mcp__memory__memory_save|Write|Edit|Bash'
+            hooks[event] = [entry]
     runtime_home(home, environment, hooks)
     env['CODEX_HOME' if environment == 'codex' else 'CLAUDE_CONFIG_DIR'] = str(home)
     settings = dict(hooks=hooks, autoMemoryEnabled=False)
