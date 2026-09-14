@@ -153,6 +153,41 @@ class QueryHook(unittest.TestCase):
             event.pop('prompt_id')
             self.assertFalse(self.invoke(event,temp)['continue'])
 
+    def test_resolve_pending_and_failure_invalidate_prior_search(self):
+        with tempfile.TemporaryDirectory() as temp:
+            def call(event, tool=None, ident='t', **kw):
+                return self.invoke(dict(session_id='s',prompt_id='r',hook_event_name=event,
+                    tool_name=tool,tool_use_id=ident,tool_input={'query':'topic'},**kw),temp)
+            call('UserPromptSubmit')
+            search='mcp__memory__memory_search';resolve='mcp__memory__memory_project_resolve'
+            call('PreToolUse',search,'search')
+            call('PostToolUse',search,'search',tool_response=[{'type':'text','text':'[]'}])
+            call('PreToolUse',resolve,'resolve')
+            self.assertEqual(call('PreToolUse','Write')['hookSpecificOutput']['permissionDecision'],'deny')
+            call('PostToolUseFailure',resolve,'resolve',error='registry unavailable')
+            self.assertEqual(call('PreToolUse',search)['hookSpecificOutput']['permissionDecision'],'deny')
+            call('PreToolUse',resolve,'retry')
+            call('PostToolUse',resolve,'retry',tool_response=[{'type':'text','text':'{"project_id":null,"targets":[]}'}])
+            self.assertEqual(call('PreToolUse',search,'new'),{})
+            call('PostToolUse',search,'new',tool_response=[{'type':'text','text':'[]'}])
+            self.assertEqual(call('PreToolUse','Write'),{})
+
+    def test_retry_scope_and_filters_cannot_change_without_new_context(self):
+        for altered in [{'current_project_id':'B'}, {'kind':'feedback'}, {'project_filter':'B'}, {'review':True}]:
+            with self.subTest(altered=altered), tempfile.TemporaryDirectory() as temp:
+                def call(event,tool=None,ident='t',inputs=None,response=None):
+                    return self.invoke(dict(session_id='s',prompt_id='r',hook_event_name=event,tool_name=tool,
+                        tool_use_id=ident,tool_input=inputs or {},tool_response=response),temp)
+                call('UserPromptSubmit')
+                search='mcp__memory__memory_search';args={'query':'topic','current_project_id':'A'}
+                call('PreToolUse',search,inputs=args)
+                call('PostToolUse',search,response=[{'type':'text','text':'[]'}])
+                value=call('PreToolUse',search,'retry',dict(args,**altered))
+                self.assertEqual(value['hookSpecificOutput']['permissionDecision'],'deny')
+                call('PreToolUse','mcp__memory__memory_project_resolve','resolve')
+                call('PostToolUse','mcp__memory__memory_project_resolve','resolve',response=[{'type':'text','text':'{"project_id":"B","targets":[]}'}])
+                self.assertEqual(call('PreToolUse',search,'new',{'query':'topic','current_project_id':'B'}),{})
+
 
 if __name__ == '__main__':
     unittest.main()

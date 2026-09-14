@@ -35,7 +35,7 @@ def request_output(event, state):
     request = event.get('prompt_id')
     if kind == 'UserPromptSubmit':
         state.clear()
-        state.update(request=request, searched=False, attempts=0, pending={}, outcome='not_searched', project=None, target_key=None, resolved=False, corrected=False, denials=0)
+        state.update(request=request, searched=False, attempts=0, pending={}, outcome='not_searched', project=None, target_key=None, query_scope=None, resolved=False, resolving=False, resolve_error=False, corrected=False, denials=0)
         return {'hookSpecificOutput': {'hookEventName': kind,
                 'additionalContext': '새 요청입니다. 답변·변경·저장 전에 현재 프로젝트의 관련 기억을 검색하세요.'}}
     if state.get('request') != request:
@@ -47,10 +47,13 @@ def request_output(event, state):
         return {'systemMessage': '현재 요청의 검색 미완료: 연결 검증 실패.'}
     ident = event.get('tool_use_id')
     if kind == 'PreToolUse' and tool == 'mcp__memory__memory_project_resolve':
+        state.update(searched=False, resolving=True, resolve_error=False, pending={})
         state['pending'][ident] = 'resolve'
-    if kind == 'PostToolUse' and tool == 'mcp__memory__memory_project_resolve':
+    if kind in ('PostToolUse', 'PostToolUseFailure') and tool == 'mcp__memory__memory_project_resolve':
         if state['pending'].pop(ident, None) != 'resolve':
             return {}
+        state['resolving'] = False
+        state['resolve_error'] = True
         response = event.get('tool_response')
         if isinstance(response, dict) and not response.get('isError'):
             response = response.get('content')
@@ -62,19 +65,26 @@ def request_output(event, state):
             state['outcome'] = 'error'
             return {}
         state['resolved'] = True
+        state['resolve_error'] = False
         target_key = hashlib.sha256(json.dumps(value.get('targets', []), sort_keys=True).encode()).hexdigest()
         if project != state['project'] or target_key != state['target_key']:
             state['target_key'] = target_key
-            state.update(project=project, searched=False, outcome='not_searched', attempts=0, pending={})
+            state.update(project=project, searched=False, outcome='not_searched', attempts=0, pending={}, query_scope=None)
     if kind == 'PreToolUse' and tool == 'mcp__memory__memory_search':
+        if state['resolving'] or state['resolve_error']:
+            return deny('프로젝트 식별이 진행 중이거나 실패했습니다. 식별을 완료한 뒤 검색하세요.')
         inputs = event.get('tool_input', {})
         if state['resolved'] and inputs.get('current_project_id') != state['project']:
             return deny('식별된 현재 프로젝트와 검색 범위가 다릅니다. 현재 프로젝트를 유지하세요.')
+        scope = [inputs.get('current_project_id'), inputs.get('project_filter'), inputs.get('kind'), inputs.get('review', False)]
+        if state['query_scope'] is not None and state['query_scope'] != scope:
+            return deny('재검색의 프로젝트·유형·검토 필터를 바꾸지 마세요. 작업 대상 변경이면 먼저 프로젝트를 다시 식별하세요.')
         rejected = hook_output(event)
         if rejected:
             return rejected
         if state['attempts'] >= 3:
             return deny('이 문맥의 검색 3회 한도에 도달했습니다. 확인된 결과만 사용하고 미확인은 그대로 보고하세요.')
+        state['query_scope'] = scope
         state['attempts'] += 1
         state['pending'][ident] = 'search'
     if kind in ('PostToolUse', 'PostToolUseFailure') and tool == 'mcp__memory__memory_search':
@@ -119,8 +129,8 @@ def process_event(event, directory):
                 raise ValueError('invalid state')
             if path.exists():
                 expected = {'request': str, 'searched': bool, 'attempts': int, 'pending': dict,
-                            'outcome': str, 'resolved': bool, 'corrected': bool, 'denials': int}
-                if any(type(state.get(k)) is not t for k, t in expected.items()) or not {'project','target_key'} <= state.keys():
+                            'outcome': str, 'resolved': bool, 'resolving': bool, 'resolve_error': bool, 'corrected': bool, 'denials': int}
+                if any(type(state.get(k)) is not t for k, t in expected.items()) or not {'project','target_key','query_scope'} <= state.keys():
                     raise ValueError('invalid state fields')
         except (ValueError, OSError):
             return {'continue': False, 'stopReason': '검색 상태 손상으로 작업을 중단했습니다. 회상 연결 미완료.'}

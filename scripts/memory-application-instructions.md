@@ -2,9 +2,19 @@
 
 자동 적용은 valid confirmed 중 global 또는 현재 프로젝트 일치 항목으로 제한한다. review 조회와 memory_get 원문/전체 목록은 적용 승인이 아니다. 현재 사용자 명시 지시 → 해당 작업 명시 규칙 → 저장된 일반 선호 순서로 적용한다. 일회성 예외는 그 작업에만 적용하고 영구 변경이 불분명하면 기존 기억을 보존한다.
 
-저장이 필요한 사용자 선호·정정·제약은 memory_save의 완전한 metadata로 저장한다. 내용 추론은 candidate다. 범위가 애매하면 식별된 현재 프로젝트로 좁혀 scope_inferred=true로 기록한다. 명시 정정 내용은 confirmed일 수 있다. 프로젝트 문맥도 없으면 scope=null, status=candidate, project_id=null, scope_inferred=false로 격리한다. 전역 확대와 후보 확정은 사용자 명시/확인 근거가 필요하다. scope_reason과 status_reason은 각각 범위와 내용의 근거를 짧게 설명한다.
+저장 시 scope(어디에 적용하는가)와 status(내용이 확인됐는가)를 독립적으로 결정한다. memory_save에는 완전한 metadata를 전달한다. 다음 표는 기존 저장 계약의 적용 순서다.
 
-저장 전에는 내용의 확정성과 적용 범위를 별도로 판단한다. “앞으로”, “기억해둬”는 내용 정정·저장 의사이며 그 말만으로 모든 프로젝트에 적용하라는 근거가 되지 않는다. 현재 프로젝트도 없고 모든 프로젝트/일반 작업에 적용하라는 명시 근거도 없으면 scope=null, status=candidate로 보관한다. 현재 요청에 말투를 적용하는 것과 장기 기억의 자동 적용 확정은 별개다. 반대로 전역 적용의 명시 지시나 확인이 있으면 global/confirmed를 허용한다. scope_reason에는 실제 범위 근거만 쓰며 저장 요청 자체를 전역 적용 근거로 바꾸지 않는다.
+| 범위 근거 | 내용 근거 | 저장 |
+| --- | --- | --- |
+| 전역 적용을 사용자가 명시하거나 확인함 | 직접 선호·정정·확정 결정 | global / confirmed, project_id=null, scope_inferred=false |
+| 현재 등록 프로젝트가 있고 범위는 불명확 | 직접 선호·정정·확정 결정 | project / confirmed, 현재 project_id, scope_inferred=true |
+| 현재 등록 프로젝트를 사용자가 명시적으로 범위로 지정 | 직접 선호·정정·확정 결정 | project / confirmed, 해당 project_id, scope_inferred=false |
+| 범위는 식별됐지만 내용은 관찰에서 추론함 | 사용자 확인 없음 | 식별된 scope / candidate |
+| 현재 프로젝트도 없고 명시 전역 적용 근거도 없음 | 직접 정정이어도 범위 미정 | null / candidate, project_id=null, scope_inferred=false |
+
+명시적 정정을 현재 프로젝트로 좁혔다면 전역 확인을 추가로 요구하거나 candidate로 낮추지 않는다. scope_inferred=true는 범위 추정만 뜻하며 내용의 확정 상태와 독립이다. scope_reason에는 범위 근거, status_reason에는 직접 지시 또는 내용 추론의 근거를 각각 쓴다. null/candidate 격리에서는 프로젝트 문맥과 적용 범위를 못 정했다는 이유를 쓴다.
+
+“앞으로”, “기억해둬”만으로 모든 프로젝트 적용을 추론하지 않는다. 그러나 현재 프로젝트가 있는 직접 정정의 confirmed 근거는 사용자 발언 자체다. 현재 요청에 말투를 적용하는 것과 장기 기억 범위를 넓히는 것은 별개다. 후보 확정과 project→global 확대에는 그 변경을 뒷받침하는 사용자 지시·확인이 필요하다.
 
 세션에 제공된 핵심은 승인된 짧은 본문이다. 원본에서 정정이나 충돌이 드러나면 해당 항목 적용을 중단하고 재검토한다. 핵심 제공 실패를 검색 성공이나 전체 인덱스 주입으로 대체하지 않는다. 저장/검색 호출만으로 요청한 행동이 완료됐다고 보고하지 않는다.
 
