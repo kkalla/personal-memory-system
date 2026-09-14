@@ -11,10 +11,11 @@ SCRIPT = Path(__file__).resolve().parents[1] / 'scripts/memory_retrieval_hook.py
 
 
 class QueryHook(unittest.TestCase):
-    def invoke(self, event, state=None):
+    def invoke(self, event, state=None, require_start=False):
         result = subprocess.run([sys.executable, str(SCRIPT)],
                                 input=json.dumps(event), text=True, capture_output=True,
-                                env=dict(os.environ, **({'MEMORY_RETRIEVAL_STATE': str(state)} if state else {})))
+                                env=dict(os.environ, MEMORY_RETRIEVAL_REQUIRE_SESSION_START='1' if require_start else '0',
+                                         **({'MEMORY_RETRIEVAL_STATE': str(state)} if state else {})))
         self.assertEqual(result.returncode, 0, result.stderr)
         return json.loads(result.stdout)
 
@@ -187,6 +188,41 @@ class QueryHook(unittest.TestCase):
                 call('PreToolUse','mcp__memory__memory_project_resolve','resolve')
                 call('PostToolUse','mcp__memory__memory_project_resolve','resolve',response=[{'type':'text','text':'{"project_id":"B","targets":[]}'}])
                 self.assertEqual(call('PreToolUse',search,'new',{'query':'topic','current_project_id':'B'}),{})
+
+    def test_operator_pause_leaves_cached_hook_calls_inert(self):
+        with tempfile.TemporaryDirectory() as temp:
+            (Path(temp)/'DISABLED').write_text('paused')
+            value=self.invoke(dict(session_id='existing',prompt_id='r',hook_event_name='PreToolUse',
+                tool_name='Bash',tool_input={'command':'true'}),temp)
+            self.assertEqual(value,{})
+            self.assertEqual(list(Path(temp).glob('*.json')),[])
+
+    def test_mid_request_install_does_not_poison_later_events(self):
+        with tempfile.TemporaryDirectory() as temp:
+            event=dict(session_id='existing',prompt_id='already-running',tool_name='Bash',
+                       tool_use_id='tool',tool_input={'command':'true'})
+            first=self.invoke(dict(event,hook_event_name='PreToolUse'),temp)
+            second=self.invoke(dict(event,hook_event_name='PostToolUse'),temp)
+            self.assertEqual([first,second],[{},{}])
+            self.assertEqual(list(Path(temp).glob('*.json')),[])
+            self.invoke(dict(event,hook_event_name='UserPromptSubmit',prompt_id='next'),temp)
+            self.assertEqual(self.invoke(dict(event,hook_event_name='PreToolUse',prompt_id='next'),temp)
+                             ['hookSpecificOutput']['permissionDecision'],'deny')
+
+    def test_operational_control_only_arms_at_new_session_start(self):
+        with tempfile.TemporaryDirectory() as temp:
+            def call(kind,session='existing',**kw):
+                return self.invoke(dict(session_id=session,prompt_id='r',hook_event_name=kind,**kw),temp,require_start=True)
+            self.assertEqual(call('UserPromptSubmit'),{})
+            self.assertEqual(call('PreToolUse',tool_name='Bash'),{})
+            self.assertEqual(call('SessionStart',source='compact'),{})
+            self.assertEqual(call('UserPromptSubmit'),{})
+            self.assertEqual(self.invoke(dict(session_id='new',hook_event_name='SessionStart',
+                                               source='startup'),temp,require_start=True),{})
+            call('UserPromptSubmit',session='new')
+            denied=call('PreToolUse',session='new',tool_name='Write')
+            self.assertEqual(denied['hookSpecificOutput']['permissionDecision'],'deny')
+            self.assertEqual(call('PreToolUse',tool_name='Bash'),{})
 
 
 if __name__ == '__main__':

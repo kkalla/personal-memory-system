@@ -1,5 +1,7 @@
 # memory-tick 저장 스킬·Stop 훅 보강 — 2026-09-14
 
+후속 memory MCP 운영 연결은 [운영 기록](memory-operations-validation.md)에 완료 상태와 제한을 남겼다. 아래 연결 미완료 설명은 당시 기록이다.
+
 사용자 “좋다. 훅 변경도 승인”에 따라 기존 훅 수정 금지 경계를 이번 보강에 한해 해제했다. 기존 사용자 변경인 60분 간격은 유지했다. [운영 적용 계획](superpowers/plans/2026-09-14-memory-retrieval-operations-plan.md)의 실제 볼트·전역 설정 설치는 아직 수행하지 않았다.
 
 ## 변경

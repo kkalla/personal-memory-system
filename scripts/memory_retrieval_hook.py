@@ -112,7 +112,37 @@ def request_output(event, state):
     return hook_output(event)
 
 
+def operational_session_ready(event, directory):
+    """New deployments must not enforce requests in already-running sessions."""
+    root = Path(directory)
+    if (root / 'DISABLED').exists():
+        return False
+    session = event.get('session_id')
+    if not isinstance(session, str) or not session:
+        return False
+    key = hashlib.sha256(session.encode()).hexdigest()
+    active = root / (key + '.active')
+    if event.get('hook_event_name') == 'SessionStart':
+        # Compaction alone does not reload MCP configuration in an old session.
+        if event.get('source') not in ('startup', 'resume', 'clear'):
+            return False
+        root.mkdir(mode=0o700, parents=True, exist_ok=True)
+        root.chmod(0o700)
+        fd, tmp = tempfile.mkstemp(dir=root)
+        try:
+            with os.fdopen(fd, 'w') as stream:
+                stream.write('session-start-v1\n')
+            os.replace(tmp, active)
+        finally:
+            if os.path.exists(tmp):
+                os.unlink(tmp)
+        return False
+    return active.is_file() and active.read_text() == 'session-start-v1\n'
+
+
 def process_event(event, directory):
+    if (Path(directory) / 'DISABLED').exists():
+        return {}
     if not all(isinstance(event.get(k), str) and event[k] for k in ('session_id', 'prompt_id')):
         return {'continue': False, 'stopReason': '요청 식별자가 없어 검색 상태를 확인할 수 없습니다.'}
     root = Path(directory)
@@ -123,6 +153,10 @@ def process_event(event, directory):
     lock = os.open(str(root / (key + '.lock')), os.O_CREAT | os.O_RDWR, 0o600)
     with os.fdopen(lock, 'w') as handle:
         fcntl.flock(handle, fcntl.LOCK_EX)
+        if not path.exists() and event.get('hook_event_name') != 'UserPromptSubmit':
+            # A hook attached mid-turn has never observed this request.
+            # Do not persist a denial-only object that poisons the next event.
+            return {}
         try:
             state = json.loads(path.read_text()) if path.exists() else {}
             if not isinstance(state, dict):
@@ -154,7 +188,14 @@ def process_event(event, directory):
 if __name__ == '__main__':
     event = json.load(sys.stdin)
     directory = os.environ.get('MEMORY_RETRIEVAL_STATE')
-    output = process_event(event, directory) if directory else hook_output(event)
+    if directory and os.environ.get('MEMORY_RETRIEVAL_REQUIRE_SESSION_START') == '1':
+        try:
+            ready = operational_session_ready(event, directory)
+        except (OSError, ValueError):
+            ready = False
+        output = process_event(event, directory) if ready else {}
+    else:
+        output = process_event(event, directory) if directory else hook_output(event)
     if os.environ.get('MEMORY_EVAL_TRACE'):
         with open(os.environ['MEMORY_EVAL_TRACE'], 'a', encoding='utf-8') as stream:
             stream.write(json.dumps(dict(event='retrieval_hook', hook_event=event.get('hook_event_name'),
