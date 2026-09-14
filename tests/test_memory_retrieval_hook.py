@@ -77,12 +77,12 @@ class QueryHook(unittest.TestCase):
             resolve='mcp__memory__memory_project_resolve'
             search='mcp__memory__memory_search'
             call('PreToolUse', resolve, ident='p1')
-            call('PostToolUse', resolve, ident='p1', tool_response=[{'type':'text','text':'{"project_id":"A"}'}])
-            call('PreToolUse', search, inputs={'query':'topic','current_project_id':'A'})
+            call('PostToolUse', resolve, ident='p1', tool_response=[{'type':'text','text':'{"project_id":"prj-123e4567-e89b-42d3-a456-426614174000"}'}])
+            call('PreToolUse', search, inputs={'query':'topic','current_project_id':'prj-123e4567-e89b-42d3-a456-426614174000'})
             call('PostToolUse', search, tool_response=[{'type':'text','text':'[]'}])
             self.assertEqual(call('PreToolUse','Write'), {})
             call('PreToolUse', resolve, ident='p2')
-            call('PostToolUse', resolve, ident='p2', tool_response=[{'type':'text','text':'{"project_id":"B"}'}])
+            call('PostToolUse', resolve, ident='p2', tool_response=[{'type':'text','text':'{"project_id":"prj-123e4567-e89b-42d3-a456-426614174001"}'}])
             self.assertEqual(call('PreToolUse','Write')['hookSpecificOutput']['permissionDecision'], 'deny')
             self.assertEqual(call('Stop',stop_hook_active=False)['decision'],'block')
             self.assertNotIn('decision',call('Stop',stop_hook_active=True))
@@ -100,8 +100,8 @@ class QueryHook(unittest.TestCase):
             call('PostToolUse',tool=search,ident='old',tool_response=[{'type':'text','text':'[]'}])
             self.assertEqual(call('PreToolUse',request='r2',tool='Write')['hookSpecificOutput']['permissionDecision'],'deny')
             call('PreToolUse',request='r2',tool='mcp__memory__memory_project_resolve',ident='resolve')
-            call('PostToolUse',request='r2',tool='mcp__memory__memory_project_resolve',ident='resolve',tool_response=[{'type':'text','text':'{"project_id":"A","targets":[]}'}])
-            self.assertEqual(call('PreToolUse',request='r2',tool=search,inputs={'query':'topic','current_project_id':'B'})['hookSpecificOutput']['permissionDecision'],'deny')
+            call('PostToolUse',request='r2',tool='mcp__memory__memory_project_resolve',ident='resolve',tool_response=[{'type':'text','text':'{"project_id":"prj-123e4567-e89b-42d3-a456-426614174000","targets":[]}'}])
+            self.assertEqual(call('PreToolUse',request='r2',tool=search,inputs={'query':'topic','current_project_id':'prj-123e4567-e89b-42d3-a456-426614174001'})['hookSpecificOutput']['permissionDecision'],'deny')
             path=next(Path(temp).glob('*.json'));path.write_text('{corrupted')
             self.assertFalse(call('PreToolUse',request='r2',tool='Write')['continue'])
 
@@ -137,9 +137,9 @@ class QueryHook(unittest.TestCase):
             call('UserPromptSubmit')
             for i in range(2):
                 call('PreToolUse','mcp__memory__memory_project_resolve',str(i))
-                call('PostToolUse','mcp__memory__memory_project_resolve',str(i),response=[{'type':'text','text':json.dumps({'project_id':'A','targets':[{'path':str(i),'project_id':'A','conflict':False}]})}])
+                call('PostToolUse','mcp__memory__memory_project_resolve',str(i),response=[{'type':'text','text':json.dumps({'project_id':'prj-123e4567-e89b-42d3-a456-426614174000','targets':[{'path':str(i),'project_id':'prj-123e4567-e89b-42d3-a456-426614174000','conflict':False}]})}])
                 if i==0:
-                    call('PreToolUse','mcp__memory__memory_search','search',{'query':'topic','current_project_id':'A'})
+                    call('PreToolUse','mcp__memory__memory_search','search',{'query':'topic','current_project_id':'prj-123e4567-e89b-42d3-a456-426614174000'})
                     call('PostToolUse','mcp__memory__memory_search','search',response=[{'type':'text','text':'[]'}])
                     self.assertEqual(call('PreToolUse','Write'),{})
             self.assertEqual(call('PreToolUse','Write')['hookSpecificOutput']['permissionDecision'],'deny')
@@ -174,20 +174,68 @@ class QueryHook(unittest.TestCase):
             self.assertEqual(call('PreToolUse','Write'),{})
 
     def test_retry_scope_and_filters_cannot_change_without_new_context(self):
-        for altered in [{'current_project_id':'B'}, {'kind':'feedback'}, {'project_filter':'B'}, {'review':True}]:
+        for altered in [{'current_project_id':'prj-123e4567-e89b-42d3-a456-426614174001'}, {'kind':'feedback'}, {'project_filter':'prj-123e4567-e89b-42d3-a456-426614174001'}, {'review':True}]:
             with self.subTest(altered=altered), tempfile.TemporaryDirectory() as temp:
                 def call(event,tool=None,ident='t',inputs=None,response=None):
                     return self.invoke(dict(session_id='s',prompt_id='r',hook_event_name=event,tool_name=tool,
                         tool_use_id=ident,tool_input=inputs or {},tool_response=response),temp)
                 call('UserPromptSubmit')
-                search='mcp__memory__memory_search';args={'query':'topic','current_project_id':'A'}
+                search='mcp__memory__memory_search';args={'query':'topic','current_project_id':'prj-123e4567-e89b-42d3-a456-426614174000'}
                 call('PreToolUse',search,inputs=args)
                 call('PostToolUse',search,response=[{'type':'text','text':'[]'}])
                 value=call('PreToolUse',search,'retry',dict(args,**altered))
                 self.assertEqual(value['hookSpecificOutput']['permissionDecision'],'deny')
                 call('PreToolUse','mcp__memory__memory_project_resolve','resolve')
-                call('PostToolUse','mcp__memory__memory_project_resolve','resolve',response=[{'type':'text','text':'{"project_id":"B","targets":[]}'}])
-                self.assertEqual(call('PreToolUse',search,'new',{'query':'topic','current_project_id':'B'}),{})
+                call('PostToolUse','mcp__memory__memory_project_resolve','resolve',response=[{'type':'text','text':'{"project_id":"prj-123e4567-e89b-42d3-a456-426614174001","targets":[]}'}])
+                self.assertEqual(call('PreToolUse',search,'new',{'query':'topic','current_project_id':'prj-123e4567-e89b-42d3-a456-426614174001'}),{})
+
+    def test_readonly_git_pipeline_does_not_consume_denials_or_unlock_writes(self):
+        with tempfile.TemporaryDirectory() as temp:
+            event=dict(session_id='s',prompt_id='r',hook_event_name='PreToolUse',tool_name='Bash')
+            self.invoke(dict(event,hook_event_name='UserPromptSubmit'),temp)
+            for command in ['git log --oneline -8 && git show --stat 42db0e8 | head -30',
+                            'git log --oneline -8', 'git show --stat 42db0e8']:
+                self.assertEqual(self.invoke(dict(event,tool_input={'command':command}),temp),{})
+            state=json.loads(next(Path(temp).glob('*.json')).read_text())
+            self.assertEqual(state['denials'],0)
+            self.assertFalse(state['searched'])
+            self.assertEqual(self.invoke(dict(event,tool_name='Write',tool_input={}),temp)
+                             ['hookSpecificOutput']['permissionDecision'],'deny')
+
+    def test_readonly_exception_rejects_shell_mutations_and_unsafe_git_options(self):
+        for command in ['git log --oneline > out', 'git log --oneline && touch out',
+                        'git log --oneline; touch out', 'git show --stat $(touch out)',
+                        'git -c alias.x=foo x', 'git log --output=out',
+                        'git show --ext-diff HEAD', 'git show --textconv HEAD',
+                        'git log --oneline | head -30 > out', 'git log --oneline &',
+                        'git log --oneline\ntouch out', 'git show --stat HEAD | sh']:
+            with self.subTest(command=command), tempfile.TemporaryDirectory() as temp:
+                event=dict(session_id='s',prompt_id='r',hook_event_name='PreToolUse',tool_name='Bash')
+                self.invoke(dict(event,hook_event_name='UserPromptSubmit'),temp)
+                self.assertEqual(self.invoke(dict(event,tool_input={'command':command}),temp)
+                                 ['hookSpecificOutput']['permissionDecision'],'deny')
+
+    def test_project_label_rejected_before_consuming_search_budget_and_resolve_recovers(self):
+        with tempfile.TemporaryDirectory() as temp:
+            event=dict(session_id='s',prompt_id='r',hook_event_name='PreToolUse',tool_use_id='t')
+            self.invoke(dict(event,hook_event_name='UserPromptSubmit'),temp)
+            search=dict(event,tool_name='mcp__memory__memory_search',
+                        tool_input={'query':'진단','current_project_id':'96_ags-watchtower'})
+            result=self.invoke(search,temp)
+            reason=result['hookSpecificOutput']['permissionDecisionReason']
+            self.assertIn('memory_project_resolve',reason)
+            state=json.loads(next(Path(temp).glob('*.json')).read_text())
+            self.assertEqual(state['attempts'],0)
+            self.assertIsNone(state['query_scope'])
+            resolve=dict(event,tool_name='mcp__memory__memory_project_resolve',tool_input={'cwd':'/work'})
+            self.invoke(resolve,temp)
+            self.invoke(dict(resolve,hook_event_name='PostToolUse',tool_response=[
+                {'type':'text','text':'{"project_id":null,"targets":[]}'}]),temp)
+            search['tool_input']={'query':'진단'}
+            self.assertEqual(self.invoke(search,temp),{})
+            self.invoke(dict(search,hook_event_name='PostToolUse',tool_response=[
+                {'type':'text','text':'[]'}]),temp)
+            self.assertEqual(self.invoke(dict(event,tool_name='Write',tool_input={}),temp),{})
 
     def test_operator_pause_leaves_cached_hook_calls_inert(self):
         with tempfile.TemporaryDirectory() as temp:

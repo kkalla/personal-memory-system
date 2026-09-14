@@ -4,6 +4,8 @@ import json
 import fcntl
 import hashlib
 import os
+import re
+from memory_contract import project_id
 from pathlib import Path
 import tempfile
 import sys
@@ -28,6 +30,22 @@ def hook_output(event):
 def deny(reason):
     return {'hookSpecificOutput': {'hookEventName': 'PreToolUse',
             'permissionDecision': 'deny', 'permissionDecisionReason': reason}}
+
+
+def readonly_git_inspection(command):
+    """Narrow shell syntax exception, not a general read-only shell classifier.
+
+    No substitutions, redirects, Git config overrides, pathspecs, or executable
+    diff helpers. Unknown commands still require the normal search prerequisite.
+    """
+    if not isinstance(command, str) or any(c in command for c in '\r\n'):
+        return False
+    revision = r'(?:[0-9a-fA-F]{4,40}|HEAD(?:~[0-9]+)?)'
+    log = r'git +log(?: +(?:--oneline|--stat|-[0-9]+|--max-count=[0-9]+))*(?: +' + revision + r')?'
+    show = r'git +show +--stat(?: +' + revision + r')?'
+    head = r'head +(?:-[0-9]+|-n +[0-9]+)'
+    inspection = r'(?:' + log + '|' + show + r')(?: *\| *' + head + r')?'
+    return re.fullmatch(r' *' + inspection + r'(?: *&& *' + inspection + r')* *', command) is not None
 
 
 def request_output(event, state):
@@ -74,6 +92,15 @@ def request_output(event, state):
         if state['resolving'] or state['resolve_error']:
             return deny('프로젝트 식별이 진행 중이거나 실패했습니다. 식별을 완료한 뒤 검색하세요.')
         inputs = event.get('tool_input', {})
+        for field in ('current_project_id', 'project_filter'):
+            if inputs.get(field) is not None:
+                try:
+                    project_id(inputs[field])
+                except ValueError:
+                    return deny('프로젝트 이름이나 폴더명을 project_id로 사용하지 마세요. '
+                                'memory_project_resolve에 작업 대상 경로를 전달하고 반환된 prj-UUID를 사용하세요. '
+                                '식별 결과가 null이면 current_project_id를 생략하거나 null로 검색하고 '
+                                '프로젝트 필터를 넣지 마세요. ID를 임의 생성하거나 등록하지 마세요.')
         if state['resolved'] and inputs.get('current_project_id') != state['project']:
             return deny('식별된 현재 프로젝트와 검색 범위가 다릅니다. 현재 프로젝트를 유지하세요.')
         scope = [inputs.get('current_project_id'), inputs.get('project_filter'), inputs.get('kind'), inputs.get('review', False)]
@@ -107,8 +134,10 @@ def request_output(event, state):
         if outcome == 'empty' and state['attempts'] < 3:
             return {'hookSpecificOutput': {'hookEventName': kind,
                 'additionalContext': '현재 검색은 정상 0건입니다. 예시값·파일명 대신 작업 대상 종류를 나타내는 다른 핵심 명사 하나로 다시 검색하세요. 현재 프로젝트·필터를 유지하고 최대 3회를 넘기지 마세요.'}}
+    if kind == 'PreToolUse' and tool == 'Bash' and readonly_git_inspection(event.get('tool_input', {}).get('command')):
+        return {}
     if kind == 'PreToolUse' and tool in ('Write', 'Edit', 'Bash', 'mcp__memory__memory_save') and not state.get('searched'):
-        return deny('현재 요청에서 memory_search를 먼저 수행하세요. 검색을 완료하기 전 변경·저장을 진행할 수 없습니다.')
+        return deny('현재 요청에서 memory_search를 먼저 수행하세요. 검색을 완료하기 전 변경·저장 및 조회 예외로 확인되지 않은 Bash 실행을 진행할 수 없습니다. 먼저 memory_project_resolve로 작업 경로를 식별하세요.')
     return hook_output(event)
 
 
