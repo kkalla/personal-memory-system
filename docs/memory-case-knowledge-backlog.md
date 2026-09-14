@@ -1,6 +1,6 @@
 # 후속 검토: 선호 기억과 사례 지식
 
-상태: **보류 — 문서로만 보존**. 2026-09-14 사용자가 아래 세 가지 아이디어를 나중에 꺼내 작업하도록 요청했다. 현재 운영 적용 범위에 포함하지 않으며 실제 볼트 저장, 새 schema, 자동 요약 구현은 하지 않는다.
+상태: **설계 승인 — 수동 사례 문서 작성**. 2026-09-14 사용자가 이 백로그의 설계 착수를 요청했고, 초안 제시 후 `설계 승인`으로 D1–D5를 승인했다. [승인된 사례 지식 설계](superpowers/specs/2026-09-14-memory-case-knowledge-design.md)에 분리 방식, 세 실제 사례, 근거 계약과 평가 방향을 확정했다. [독립 사례 목록](case-knowledge/README.md)에 문서와 검토 상태를 기록한다. 아래는 최초 보류 시점의 배경과 검토 항목을 보존한 것이다. 실제 볼트 저장, 새 schema, 자동 요약 구현은 아직 승인·실행하지 않았다.
 
 출발점은 Tejas Sharma의 [Why Consultants and Advisors Need Karpathy’s Knowledge System More Than They Think](https://medium.com/@tejas-sharma/why-consultants-and-advisors-need-karpathys-knowledge-system-more-than-they-think-86f74e93457f)다. 글은 원자료를 연결된 지식으로 정리해 필요할 때 재사용하는 접근을 소개한다. 아래 내용은 **우리 프로젝트에 대한 제안**이며 글의 효과를 실증한 결과나 Karpathy 원본 구현을 직접 검증한 결론은 아니다.
 
@@ -23,4 +23,4 @@
 - 2~3개의 실제 사례로 원문을 보존한 수동 요약부터 시도한다. 자동화는 반복 가치와 누락/과잉 일반화 사례를 확인한 뒤 판단한다.
 - 기존 11개 fixture는 사용자 선호·제약 적용 회귀로 유지한다. 사례 지식의 유용성은 별도 평가로 두고 점수를 합치지 않는다. 비교 과제에서 실제 반환 근거, 재발 여부, 반복한 작업/도구 호출을 기록하며 시간 절감은 측정했을 때만 주장한다.
 
-재개 조건은 사용자의 별도 작업 요청이다. 권장 순서는 [운영 적용](superpowers/plans/2026-09-14-memory-retrieval-operations-plan.md) 후 실제 사용에서 반복 조사나 회상 실패 사례가 모였을 때다. 이 문서를 저장했다는 사실은 실행 승인이나 핵심 기억 선정이 아니다.
+설계 재개 조건은 사용자의 별도 작업 요청으로 충족됐다. [운영 적용](superpowers/plans/2026-09-14-memory-retrieval-operations-plan.md) 중 관찰된 사례도 초안에 포함한다. 설계 착수는 구현·배포 승인이나 핵심 기억 선정이 아니다.
