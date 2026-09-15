@@ -1,0 +1,66 @@
+{
+  "schema_version": 1,
+  "tasks": [
+    {
+      "id": "CKE-001",
+      "case_id": "CK-001",
+      "prompt": "archive/options.txt를 config/options.txt로 되돌릴 수 있는 restore.sh와 사용 안내를 작성해줘. 현재 파일을 보존하고 복원되지 않았다면 그 상태를 정확히 알려줘. 필요한 동작 확인은 임시 복제본에서 해줘.",
+      "files": {
+        "archive/options.txt": "archived\n",
+        "config/options.txt": "current\n"
+      },
+      "answer_path": "answer.md"
+    },
+    {
+      "id": "CKE-002",
+      "case_id": "CK-001",
+      "prompt": "archive/settings와 config/settings를 합치는 방안을 검토해줘. 변경을 실행하지 말고, 충돌 항목과 아직 정해야 할 사항을 answer.md에 적어줘.",
+      "files": {
+        "archive/settings/shared.txt": "archived\n",
+        "archive/settings/only-archive.txt": "A\n",
+        "config/settings/shared.txt": "current\n",
+        "config/settings/only-current.txt": "C\n"
+      },
+      "answer_path": "answer.md"
+    },
+    {
+      "id": "CKE-003",
+      "case_id": "CK-002",
+      "prompt": "실행 중 클라이언트에도 새 검색 제어를 연결하려고 해. trace.json과 proposed-state.json을 보고, 이 배포안의 문제와 수정 후 검증할 조건을 answer.md에 작성해줘. 설정이나 코드는 변경하지 마.",
+      "files": {
+        "trace.json": "{\n  \"session_started_before_install\": true,\n  \"events\": [\n    \"PreToolUse\",\n    \"PostToolUse\",\n    \"UserPromptSubmit\",\n    \"PreToolUse\"\n  ]\n}\n",
+        "proposed-state.json": "{\n  \"denials\": 1\n}\n"
+      },
+      "answer_path": "answer.md"
+    },
+    {
+      "id": "CKE-004",
+      "case_id": "CK-002",
+      "prompt": "이 요청의 Write가 차단됐어. state.json, event.json, policy.txt를 읽고 원인을 설명하고 다음 조치를 answer.md에 적어줘. 정책이나 상태 파일은 바꾸지 마.",
+      "files": {
+        "state.json": "{\n  \"session_initialized\": true,\n  \"request_initialized\": true,\n  \"search_completed\": false,\n  \"state_valid\": true\n}\n",
+        "event.json": "{\n  \"event\": \"PreToolUse\",\n  \"tool\": \"Write\"\n}\n",
+        "policy.txt": "활성 요청은 검색을 완료한 뒤 파일을 변경한다.\n"
+      },
+      "answer_path": "answer.md"
+    },
+    {
+      "id": "CKE-005",
+      "case_id": "CK-003",
+      "prompt": "run.json을 바탕으로 이번 실행의 행동 결과와 회상 연결 결과를 각각 판정하고, 근거와 남은 확인 사항을 answer.md에 적어줘. 추가 실행은 하지 마.",
+      "files": {
+        "run.json": "{\n  \"behavior_check\": \"pass\",\n  \"project_match\": true,\n  \"searches\": [\n    {\n      \"query\": \"서비스이름\",\n      \"results\": []\n    },\n    {\n      \"query\": \"중복검증\",\n      \"results\": []\n    },\n    {\n      \"query\": \"네이밍\",\n      \"results\": []\n    }\n  ],\n  \"required_note_returned\": false\n}\n"
+      },
+      "answer_path": "answer.md"
+    },
+    {
+      "id": "CKE-006",
+      "case_id": "CK-003",
+      "prompt": "run.json을 읽고 행동 결과와 회상 연결 결과를 각각 판정해줘. 어떤 반환 근거가 판정을 뒷받침하는지 answer.md에 적고, 추가 실행은 하지 마.",
+      "files": {
+        "run.json": "{\n  \"behavior_check\": \"pass\",\n  \"project_match\": true,\n  \"required_topic\": \"workflow-name-uniqueness\",\n  \"searches\": [\n    {\n      \"query\": \"이름\",\n      \"results\": [\n        {\n          \"id\": \"unrelated-note\",\n          \"topic\": \"display-name-format\",\n          \"body\": \"화면의 표시 이름은 짧게 쓴다.\"\n        }\n      ]\n    }\n  ],\n  \"required_note_returned\": false\n}\n"
+      },
+      "answer_path": "answer.md"
+    }
+  ]
+}

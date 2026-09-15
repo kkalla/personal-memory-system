@@ -1,0 +1,53 @@
+{
+  "schema_version": 1,
+  "purpose": "preparation_inventory_not_execution_manifest",
+  "bundles": [
+    {
+      "case_id": "CK-001",
+      "case_path": "docs/case-knowledge/CK-001-restore-collision.md",
+      "case_sha256": "342cb8af0766741d8369eeaf6bfbdcd38c4b784de49c5200b967c8999cdb4eff",
+      "review_status": "reviewed",
+      "sources": [
+        {
+          "path": "docs/memory-retrieval-t4-scope-status-validation.md",
+          "commit": "208ce193ad95487789cb7ec3ae48d83178d8ba9d",
+          "sha256": "788b226907ad99f77fdb3d9b85d44feb2fff87e52d82ae1f9f9f85c4ed647beb"
+        },
+        {
+          "path": "docs/memory-retrieval-t4-restoration-validation.md",
+          "commit": "208ce193ad95487789cb7ec3ae48d83178d8ba9d",
+          "sha256": "9fcff6140abf6843580d67b464265b57f2ba6e545dedef7777b9e2dbce6a4dbb"
+        }
+      ],
+      "review_ref": "2026-09-15 user: 검토 완료; content at 8cb33a6"
+    },
+    {
+      "case_id": "CK-002",
+      "case_path": "docs/case-knowledge/CK-002-hook-session-lifecycle.md",
+      "case_sha256": "8295c1902cbb80c8a65ef69c71a29ebefa0800aa0108009e232cd3bdbf0ffd1a",
+      "review_status": "reviewed",
+      "sources": [
+        {
+          "path": "docs/memory-operations-validation.md",
+          "commit": "208ce193ad95487789cb7ec3ae48d83178d8ba9d",
+          "sha256": "b932718299e46e6179509536e6e6d55132d7b1da4a1eddece15e3467e4a30e35"
+        }
+      ],
+      "review_ref": "2026-09-15 user: 검토 완료; content at 8cb33a6"
+    },
+    {
+      "case_id": "CK-003",
+      "case_path": "docs/case-knowledge/CK-003-recall-evidence.md",
+      "case_sha256": "7d246e9e98f0840bf8259381b6a54cc98c6975ac2c12438ff5bafe1ba70c092c",
+      "review_status": "reviewed",
+      "sources": [
+        {
+          "path": "docs/memory-retrieval-t4-restoration-validation.md",
+          "commit": "208ce193ad95487789cb7ec3ae48d83178d8ba9d",
+          "sha256": "9fcff6140abf6843580d67b464265b57f2ba6e545dedef7777b9e2dbce6a4dbb"
+        }
+      ],
+      "review_ref": "2026-09-15 user: 검토 완료; content at 8cb33a6"
+    }
+  ]
+}
