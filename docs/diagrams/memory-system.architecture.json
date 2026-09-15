@@ -1,0 +1,230 @@
+{
+  "schema_version": 1,
+  "diagram_type": "architecture",
+  "meta": {
+    "title": "개인 메모리 시스템 · 적용 현황",
+    "quality_profile": "showcase",
+    "viewBox": [
+      1290,
+      580
+    ]
+  },
+  "components": [
+    {
+      "id": "core",
+      "type": "backend",
+      "label": "세션 시작 훅",
+      "sublabel": "승인 핵심 K1–K4 제공",
+      "pos": [
+        40,
+        35
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "agent",
+      "type": "frontend",
+      "label": "Claude Code · Codex",
+      "sublabel": "지침에 따라 검색·적용·저장 판단",
+      "pos": [
+        40,
+        180
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "guard",
+      "type": "security",
+      "label": "Claude 검색 제어",
+      "sublabel": "활성 새 세션의 검색 전 변경 차단",
+      "pos": [
+        40,
+        325
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "tick",
+      "type": "backend",
+      "label": "memory-tick",
+      "sublabel": "Stop · 세션별 60분 저장 가치 평가",
+      "pos": [
+        490,
+        35
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "memory",
+      "type": "backend",
+      "label": "memory MCP",
+      "sublabel": "프로젝트 식별 · 검색 · 저장 계약",
+      "pos": [
+        490,
+        180
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "vault",
+      "type": "database",
+      "label": "개인 기억 볼트",
+      "sublabel": "~/99_memory/memory",
+      "pos": [
+        940,
+        180
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "secall",
+      "type": "backend",
+      "label": "seCall MCP",
+      "sublabel": "과거 대화 검색 · 공유 HTTP",
+      "pos": [
+        490,
+        325
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "history",
+      "type": "database",
+      "label": "대화 아카이브 · 위키",
+      "sublabel": "~/99_memory · 검색 인덱스 별도",
+      "pos": [
+        940,
+        325
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "cases",
+      "type": "external",
+      "label": "사례 문서 CK-001~003",
+      "sublabel": "검토 완료 · 필요할 때 명시적 조회",
+      "pos": [
+        490,
+        470
+      ],
+      "size": [
+        295,
+        82
+      ]
+    },
+    {
+      "id": "evaluation",
+      "type": "external",
+      "label": "사례 비교 평가 C4",
+      "sublabel": "24조건 시도 · 11쌍 중 개선 1",
+      "pos": [
+        940,
+        470
+      ],
+      "size": [
+        295,
+        82
+      ]
+    }
+  ],
+  "connections": [
+    {
+      "from": "core",
+      "to": "agent",
+      "label": "핵심 본문",
+      "labelDy": 30
+    },
+    {
+      "from": "agent",
+      "to": "memory",
+      "label": "로컬 stdio",
+      "variant": "emphasis"
+    },
+    {
+      "from": "memory",
+      "to": "vault",
+      "label": "검색 · 저장"
+    },
+    {
+      "from": "tick",
+      "to": "memory",
+      "label": "에이전트가 저장 판단",
+      "labelDy": 30
+    },
+    {
+      "from": "guard",
+      "to": "agent",
+      "label": "Claude에만 적용",
+      "variant": "security"
+    },
+    {
+      "from": "agent",
+      "to": "secall",
+      "label": "과거 대화 요청"
+    },
+    {
+      "from": "secall",
+      "to": "history",
+      "label": "조회"
+    },
+    {
+      "from": "evaluation",
+      "to": "cases",
+      "label": "효용 검토",
+      "variant": "dashed"
+    }
+  ],
+  "cards": [
+    {
+      "dot": "emerald",
+      "title": "적용된 기억 경로",
+      "items": [
+        "핵심 4개 + 승인 검색 노트 4개 연결",
+        "기본 검색: valid confirmed + 적용 범위 일치",
+        "104개 legacy는 자동 적용 제외 · 운영 기록 기준"
+      ]
+    },
+    {
+      "dot": "cyan",
+      "title": "대화 수집 운영",
+      "items": [
+        "launchd: scrub → sync · 주간 wiki · 상태 감시",
+        "memory와 seCall은 역할이 다른 별도 MCP",
+        "세션 시작은 전체 인덱스 대신 승인 핵심만 제공"
+      ]
+    },
+    {
+      "dot": "amber",
+      "title": "문서 단계와 남은 경계",
+      "items": [
+        "사례 문서는 memory 검색·훅과 자동 연결 없음",
+        "C5 운영 결정안: 사용자 승인 대기",
+        "2026-09-15 코드·적용 기록 기준 / 실시간 운영 감사 아님"
+      ]
+    }
+  ]
+}
