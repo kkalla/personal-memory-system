@@ -200,9 +200,9 @@ def process_event(event, directory):
         output = request_output(event, state)
         if output.get('hookSpecificOutput', {}).get('permissionDecision') == 'deny':
             state['denials'] = state.get('denials', 0) + 1
-            if state['denials'] >= 3:
-                output['continue'] = False
-                output['stopReason'] = '검색 보정 차단 3회 한도에 도달했습니다. 작업 미완료.'
+            # A rejected tool call must leave room to resolve the project or
+            # correct its arguments. Keep the denial, not a turn-wide stop.
+            # Search attempts and Stop correction have their own bounds.
         fd, tmp = tempfile.mkstemp(dir=root)
         try:
             with os.fdopen(fd, 'w') as stream:

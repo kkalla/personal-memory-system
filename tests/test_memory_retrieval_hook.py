@@ -113,12 +113,51 @@ class QueryHook(unittest.TestCase):
             self.assertEqual(Path(temp).stat().st_mode & 0o777,0o700)
             for path in Path(temp).iterdir():self.assertEqual(path.stat().st_mode & 0o777,0o600)
 
-    def test_repeated_denial_stops_without_allowing_unsearched_write(self):
+    def test_repeated_denial_keeps_recovery_open_without_allowing_unsearched_write(self):
         with tempfile.TemporaryDirectory() as temp:
             self.invoke(dict(session_id='s',prompt_id='r',hook_event_name='UserPromptSubmit'),temp)
             for i in range(3):
                 value=self.invoke(dict(session_id='s',prompt_id='r',hook_event_name='PreToolUse',tool_name='Write',tool_use_id=str(i),tool_input={}),temp)
-            self.assertFalse(value['continue'])
+                self.assertEqual(value['hookSpecificOutput']['permissionDecision'], 'deny')
+                self.assertNotIn('continue', value)
+            search=dict(session_id='s',prompt_id='r',tool_name='mcp__memory__memory_search',
+                        tool_use_id='recovery',tool_input={'query':'topic'})
+            self.assertEqual(self.invoke(dict(search,hook_event_name='PreToolUse'),temp),{})
+            self.invoke(dict(search,hook_event_name='PostToolUse',tool_response=[
+                {'type':'text','text':'[]'}]),temp)
+            self.assertEqual(self.invoke(dict(search,hook_event_name='PreToolUse',tool_name='Write'),temp),{})
+
+    def test_three_invalid_searches_do_not_stop_corrected_search(self):
+        with tempfile.TemporaryDirectory() as temp:
+            event=dict(session_id='s',prompt_id='r',hook_event_name='PreToolUse',
+                       tool_name='mcp__memory__memory_search',tool_use_id='search')
+            self.invoke(dict(event,hook_event_name='UserPromptSubmit'),temp)
+            for inputs in [{'query':'alpha beta'}, {'query':'topic','current_project_id':'agentic-ocr'},
+                           {'query':''}]:
+                value=self.invoke(dict(event,tool_input=inputs),temp)
+                self.assertEqual(value['hookSpecificOutput']['permissionDecision'],'deny')
+                self.assertNotIn('continue',value)
+            state=json.loads(next(Path(temp).glob('*.json')).read_text())
+            self.assertEqual(state['attempts'],0)
+            self.assertFalse(state['searched'])
+            self.assertEqual(self.invoke(dict(event,tool_input={'query':'topic'}),temp),{})
+
+    def test_search_budget_exhaustion_denies_only_search_and_preserves_result(self):
+        with tempfile.TemporaryDirectory() as temp:
+            event=dict(session_id='s',prompt_id='r',hook_event_name='PreToolUse',
+                       tool_name='mcp__memory__memory_search',tool_input={'query':'topic'})
+            self.invoke(dict(event,hook_event_name='UserPromptSubmit'),temp)
+            for i in range(3):
+                search=dict(event,tool_use_id=str(i))
+                self.assertEqual(self.invoke(search,temp),{})
+                self.invoke(dict(search,hook_event_name='PostToolUse',tool_response=[
+                    {'type':'text','text':'[]'}]),temp)
+            for i in range(3,6):
+                value=self.invoke(dict(event,tool_use_id=str(i)),temp)
+                self.assertEqual(value['hookSpecificOutput']['permissionDecision'],'deny')
+                self.assertNotIn('continue',value)
+            self.assertEqual(self.invoke(dict(event,tool_name='Write'),temp),{})
+            self.assertNotIn('decision',self.invoke(dict(event,hook_event_name='Stop'),temp))
 
     def test_concurrent_search_limit_is_atomic(self):
         from concurrent.futures import ThreadPoolExecutor
