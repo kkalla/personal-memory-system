@@ -88,10 +88,17 @@ def request_output(event, state):
         if project != state['project'] or target_key != state['target_key']:
             state['target_key'] = target_key
             state.update(project=project, searched=False, outcome='not_searched', attempts=0, pending={}, query_scope=None)
+            state.update(review_attempts=0, review_scope=None)
     if kind == 'PreToolUse' and tool == 'mcp__memory__memory_search':
         if state['resolving'] or state['resolve_error']:
             return deny('프로젝트 식별이 진행 중이거나 실패했습니다. 식별을 완료한 뒤 검색하세요.')
         inputs = event.get('tool_input', {})
+        purpose = inputs.get('purpose', 'retrieval')
+        if purpose not in ('retrieval', 'save_review'):
+            return deny('지원하지 않는 검색 목적입니다.')
+        saving_review = purpose == 'save_review'
+        if saving_review and (inputs.get('review') is not True or not state.get('searched')):
+            return deny('저장 검토는 일반 검색 완료 후 purpose=save_review와 review=true를 함께 지정하세요.')
         for field in ('current_project_id', 'project_filter'):
             if inputs.get(field) is not None:
                 try:
@@ -104,18 +111,21 @@ def request_output(event, state):
         if state['resolved'] and inputs.get('current_project_id') != state['project']:
             return deny('식별된 현재 프로젝트와 검색 범위가 다릅니다. 현재 프로젝트를 유지하세요.')
         scope = [inputs.get('current_project_id'), inputs.get('project_filter'), inputs.get('kind'), inputs.get('review', False)]
-        if state['query_scope'] is not None and state['query_scope'] != scope:
+        scope_key = 'review_scope' if saving_review else 'query_scope'
+        attempts_key = 'review_attempts' if saving_review else 'attempts'
+        if state.get(scope_key) is not None and state[scope_key] != scope:
             return deny('재검색의 프로젝트·유형·검토 필터를 바꾸지 마세요. 작업 대상 변경이면 먼저 프로젝트를 다시 식별하세요.')
         rejected = hook_output(event)
         if rejected:
             return rejected
-        if state['attempts'] >= 3:
+        if state.get(attempts_key, 0) >= 3:
             return deny('이 문맥의 검색 3회 한도에 도달했습니다. 확인된 결과만 사용하고 미확인은 그대로 보고하세요.')
-        state['query_scope'] = scope
-        state['attempts'] += 1
-        state['pending'][ident] = 'search'
+        state[scope_key] = scope
+        state[attempts_key] = state.get(attempts_key, 0) + 1
+        state['pending'][ident] = 'save_review' if saving_review else 'search'
     if kind in ('PostToolUse', 'PostToolUseFailure') and tool == 'mcp__memory__memory_search':
-        if state['pending'].pop(ident, None) != 'search':
+        pending = state['pending'].pop(ident, None)
+        if pending not in ('search', 'save_review'):
             return {}
         outcome = 'error'
         response = event.get('tool_response')
@@ -129,6 +139,9 @@ def request_output(event, state):
                         outcome = 'returned' if values[0] else 'empty'
                 except (ValueError, KeyError, TypeError):
                     pass
+        if pending == 'save_review':
+            state['review_outcome'] = outcome
+            return {}
         state['outcome'] = outcome
         state['searched'] = outcome in ('returned', 'empty')
         if outcome == 'empty' and state['attempts'] < 3:

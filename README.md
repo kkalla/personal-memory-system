@@ -15,6 +15,12 @@
 - **launchd** — 아래 「적용 중인 launchd 잡」 참고
 - **시크릿 마스킹** (`scrub/`) — 3중 방어: ① PreToolUse 훅 `block_env_dump.py`가 `.env` 값 덤프를 세션에서 차단 (`~/.claude/settings.json` 등록) ② `scrub_secrets.py`가 매일 08:45(sync 15분 전) 로컬 세션 JSONL에서 시크릿 패턴·`<private>` 스팬을 마스킹 — 로컬 파일만 만지므로 FDA 불필요. 스캔 루트는 `DEFAULT_ROOTS` = `~/.claude/projects` 하나다(2026-08-11 설정 통일 전엔 `~/.claude-work/projects`도 포함했다 — 업무 세션엔 `GITLAB_TOKEN` 류가 실제로 들어 있었다. 2026-07-30 실측: 34파일 중 4파일에 14건). **업무 세션을 다른 루트에 쌓는 구성으로 되돌린다면 루트 추가를 잊지 말 것** ③ memory-tick 스킬에 시크릿 저장 금지 규칙. 수동 점검: `python3 scrub/scrub_secrets.py --report`, vault 백필: `--paths <vault>/raw <vault>` (값 미출력, 룰명×개수만 로그). 셀프테스트: `python3 scrub/test_scrub.py`
 
+## 메모리 보관·복원
+
+메모리 중복 정리에는 `memory_archive(filename, reason, replaced_by=None)`를 사용한다. 원본을 보존하면서 활성 검색·인덱스에서 제외하며, 핵심 출처 노트는 거부한다. 응답의 `status`로 완료/부분 실패를 구분하고, 부분 실패는 같은 인자로 재시도한다. 복원은 응답의 `restore_command`로 수행한다. 충돌 방지·인덱스 재등록·재시도 규약은 [보관·복원 계약](docs/memory-retrieval-storage-contract.md#s7--명시적-보관과-복원)에 있다. 실행 중인 MCP 서버에는 재연결/재시작 후 새 도구가 노출된다.
+
+저장 전에는 일반 검색을 마친 뒤 `memory_search(purpose="save_review", review=true)`로 후보·레거시까지 검토한다. 같은 slug의 다른 kind 신규 생성은 차단된다. 의미·범위가 같은 노트만 병합하고 재조회로 검증한 뒤 중복 원본을 보관한다. [검토 조회 절차](scripts/memory-retrieval-instructions.md#저장-전-중복-검토)와 [병합·보관 및 배포 계약](docs/memory-retrieval-storage-contract.md#s9--저장-검토와-병합보관-순서)을 따른다.
+
 ## 적용 중인 launchd 잡
 
 레포 `launchd/*.plist`가 원본이고, `~/Library/LaunchAgents/`로 **복사**해서 쓴다(심링크 아님). 2026-08-11 기준 4개 + 상주 1개가 로드돼 있고 레포 원본과 내용이 일치한다(전수 점검: 모든 잡 마지막 종료 코드 0, `job-monitor`도 `0 failing`).

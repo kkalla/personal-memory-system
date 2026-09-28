@@ -17,15 +17,20 @@
 """
 
 import json
+import fcntl
+import hashlib
 import os
 import re
+import shlex
 import sys
 import tempfile
 import uuid
+import threading
 from collections import Counter
+from functools import wraps
 from memory_contract import (FIELDS, validate_metadata, parse_note, note_state,
                              strict_json, project_id, root_path, one_line, validate_registry)
-from datetime import date
+from datetime import date, datetime, timezone
 from pathlib import Path
 
 sys.path.insert(0, str(Path(__file__).resolve().parent.parent / "scrub"))
@@ -36,6 +41,23 @@ VAULT = Path(os.environ.get("MEMORY_VAULT", str(Path.home() / "99_memory" / "mem
 INDEX = "MEMORY.md"
 TYPES = ("user", "feedback", "project", "reference")
 SLUG_RX = re.compile(r"^[a-z0-9][a-z0-9-]{0,79}$")
+WRITE_LOCK = threading.RLock()
+
+
+def vault_writer(function):
+    """Serialize cooperating threads/processes without creating a vault lock file."""
+
+    @wraps(function)
+    def locked(*args, **kwargs):
+        with WRITE_LOCK:
+            fd = os.open(str(VAULT), os.O_RDONLY)
+            try:
+                fcntl.flock(fd, fcntl.LOCK_EX)
+                return function(*args, **kwargs)
+            finally:
+                os.close(fd)
+
+    return locked
 
 
 class MethodNotFound(Exception):
@@ -48,6 +70,8 @@ def write_atomic(path: Path, text: str) -> None:
     try:
         with os.fdopen(fd, "w", encoding="utf-8") as f:
             f.write(text)
+            f.flush()
+            os.fsync(f.fileno())
         os.replace(tmp, path)
     finally:
         if os.path.exists(tmp):
@@ -71,6 +95,8 @@ def existing_created(path: Path) -> str:
 def ensure_index_line(slug: str, filename: str, description: str) -> str:
     """인덱스에 없으면 한 줄 추가. 있으면 손대지 않는다(사람이 다듬은 훅 보존)."""
     path = VAULT / INDEX
+    if path.is_symlink():
+        raise ValueError("index must not be a symlink")
     if path.exists():
         lines = path.read_text(encoding="utf-8").splitlines()
     else:
@@ -102,6 +128,7 @@ def registered_id(value):
     return identity
 
 
+@vault_writer
 def memory_project_register(label, roots, confirmed=False, existing_id=None):
     """Explicit registration only; existing_id adds aliases to the same project."""
     if confirmed is not True:
@@ -148,10 +175,13 @@ def memory_project_resolve(explicit_id=None, target_paths=None, cwd=None):
                 targets=targets, ambiguous=ambiguous)
 
 
-def memory_search(query='', current_project_id=None, project_filter=None, kind=None, review=False):
+@vault_writer
+def memory_search(query='', current_project_id=None, project_filter=None, kind=None, review=False, purpose='retrieval'):
     """Case-insensitive AND keyword substring search; no semantic expansion."""
     if not isinstance(query, str) or type(review) is not bool:
         raise ValueError('query must be string; review must be boolean')
+    if purpose not in ('retrieval', 'save_review') or (purpose == 'save_review' and not review):
+        raise ValueError('save_review purpose requires review=true; unknown purposes are rejected')
     if kind is not None and kind not in TYPES:
         raise ValueError('invalid kind filter')
     current = registered_id(current_project_id) if current_project_id is not None else None
@@ -242,6 +272,7 @@ def memory_core_initial():
     return strict_json(Path(__file__).with_name('memory-core-approved.json').read_text(encoding='utf-8'))
 
 
+@vault_writer
 def memory_core_save(manifest, confirmed=False):
     if confirmed is not True:
         raise ValueError('core update requires explicit approval of exact bodies')
@@ -250,6 +281,7 @@ def memory_core_save(manifest, confirmed=False):
     return dict(budget_used=used, budget_limit=2048, budget_method='utf8-byte-v1')
 
 
+@vault_writer
 def memory_core_get():
     try:
         _, rendered, _ = validate_core(strict_json((VAULT / 'core-manifest.json').read_text(encoding='utf-8')))
@@ -258,6 +290,7 @@ def memory_core_get():
         raise ValueError('core unavailable: ' + str(exc))
 
 
+@vault_writer
 def memory_save(kind: str, slug: str, description: str, body: str, tags=None, metadata=None) -> str:
     if kind not in TYPES:
         raise ValueError(
@@ -283,6 +316,17 @@ def memory_save(kind: str, slug: str, description: str, body: str, tags=None, me
     tags = [scrub_text(t, counts) for t in tags]
 
     path = VAULT / ("%s_%s.md" % (kind, slug))
+    if path.is_symlink():
+        raise ValueError("note must not be a symlink")
+    if not path.exists():
+        # Filename identity also covers candidate, legacy and unreadable/invalid notes.
+        conflicts = sorted(
+            other.name
+            for other in (VAULT / (other_kind + "_" + slug + ".md") for other_kind in TYPES)
+            if other != path and (other.exists() or other.is_symlink())
+        )
+        if conflicts:
+            raise ValueError("duplicate slug: " + ", ".join(conflicts) + "; inspect exact filenames before merging")
     action = "updated" if path.exists() else "created"
     old, raw = {}, []
     if path.exists():
@@ -319,7 +363,7 @@ def memory_save(kind: str, slug: str, description: str, body: str, tags=None, me
     write_atomic(path, ''.join(front) + body.rstrip() + '\n')
     try:
         index_result = ensure_index_line(slug, path.name, description)
-    except OSError:
+    except (OSError, ValueError):
         raise ValueError('partial failure: note saved; index failed; retry same save with complete metadata to repair index')
     result = '%s %s (%s)' % (action, path.name, index_result)
     if metadata is None:
@@ -333,6 +377,181 @@ def memory_save(kind: str, slug: str, description: str, body: str, tags=None, me
     return result
 
 
+def archive_note_path(filename: str) -> Path:
+    """Resolve an exact active basename; never follow a note symlink."""
+    if not isinstance(filename, str) or not re.fullmatch(
+        r"(user|feedback|project|reference)_[a-z0-9][a-z0-9-]*\.md", filename
+    ):
+        raise ValueError("expected exact note basename")
+    path = VAULT / filename
+    if path.is_symlink() or (path.exists() and not path.is_file()):
+        raise ValueError("note must be a regular file, not a symlink")
+    return path
+
+
+def archive_result(record: dict, folder: Path, status: str) -> dict:
+    command = (
+        "MEMORY_VAULT="
+        + shlex.quote(str(VAULT.resolve()))
+        + " "
+        + " ".join(
+            shlex.quote(value)
+            for value in (sys.executable, str(Path(__file__).resolve()), "--restore-archive", folder.name)
+        )
+    )
+    return dict(
+        status=status,
+        archive_id=folder.name,
+        stage=record["stage"],
+        archive_path=str(folder / record["filename"]),
+        record_path=str(folder / "record.json"),
+        filename=record["filename"],
+        restore_command=command,
+    )
+
+
+@vault_writer
+def memory_archive(filename: str, reason: str, replaced_by=None) -> dict:
+    """Preserve original bytes and retire one active note; identical requests resume."""
+    source = archive_note_path(filename)
+    reason = scrub_text(one_line(reason, "reason"), Counter())
+    if replaced_by is not None:
+        archive_note_path(replaced_by)
+        if replaced_by == filename:
+            raise ValueError("a note cannot replace itself")
+    identity = json.dumps([filename, reason, replaced_by], ensure_ascii=False)
+    archive_id = hashlib.sha256(identity.encode("utf-8")).hexdigest()
+    root = VAULT / "archive"
+    folder = root / archive_id
+    for path in (root, folder):
+        if path.is_symlink() or (path.exists() and not path.is_dir()):
+            raise ValueError("archive directory must not be a symlink or file")
+    journal = folder / "record.json"
+    archived = folder / filename
+    for path in (journal, archived):
+        if path.is_symlink() or (path.exists() and not path.is_file()):
+            raise ValueError("archive files must be regular files")
+    record = None
+    if journal.exists():
+        record = strict_json(journal.read_text(encoding="utf-8"))
+        if [record["filename"], record["reason"], record["replaced_by"]] != [filename, reason, replaced_by]:
+            raise ValueError("archive request mismatch")
+        if record["stage"] == "complete":
+            if not archived.exists() or hashlib.sha256(archived.read_bytes()).hexdigest() != record["sha256"]:
+                raise ValueError("archive integrity check failed")
+            return archive_result(record, folder, "already_archived")
+    if replaced_by is not None and not (VAULT / replaced_by).is_file():
+        raise ValueError("replacement must be an active note")
+    core = VAULT / "core-manifest.json"
+    if core.is_symlink():
+        raise ValueError("cannot safely inspect core manifest symlink")
+    if core.exists():
+        manifest, _, _ = validate_core(strict_json(core.read_text(encoding="utf-8")))
+        if any(filename in entry["source_notes"] for entry in manifest["entries"]):
+            raise ValueError("cannot archive a core source note")
+    if record is None:
+        if not source.is_file():
+            raise ValueError("active note not found")
+        if archived.exists():
+            raise ValueError("archive exists without a journal; manual recovery required")
+        stat = source.stat()
+        record = dict(
+            schema_version=1,
+            filename=filename,
+            reason=reason,
+            replaced_by=replaced_by,
+            archived_at=datetime.now(timezone.utc).isoformat(),
+            stage="prepared",
+            sha256=hashlib.sha256(source.read_bytes()).hexdigest(),
+            source_device=stat.st_dev,
+            source_inode=stat.st_ino,
+        )
+    try:
+        folder.mkdir(parents=True, exist_ok=True)
+        if not journal.exists():
+            write_atomic(journal, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+        if not archived.exists():
+            stat = source.stat()
+            if (stat.st_dev, stat.st_ino) != (record["source_device"], record["source_inode"]) or hashlib.sha256(
+                source.read_bytes()
+            ).hexdigest() != record["sha256"]:
+                raise ValueError("active note changed; refusing to archive a new generation")
+            os.rename(source, archived)
+        if hashlib.sha256(archived.read_bytes()).hexdigest() != record["sha256"]:
+            raise ValueError("archive integrity check failed")
+        record["stage"] = "moved"
+        write_atomic(journal, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+        # A later save owns its own index entry, even when an earlier archive is retried.
+        index = VAULT / INDEX
+        if index.is_symlink():
+            raise ValueError("index must not be a symlink")
+        if not source.exists() and index.exists():
+            data = index.read_bytes()
+            target = re.compile(rb"^- \[[^\]\r\n]*\]\(" + re.escape(filename.encode()) + rb"\)(?:[ \t]|\r?$)")
+            kept = b"".join(line for line in data.splitlines(keepends=True) if not target.match(line))
+            if kept != data:
+                write_atomic(index, kept.decode("utf-8"))
+        record["stage"] = "complete"
+        write_atomic(journal, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+        return archive_result(record, folder, "archived")
+    except (OSError, ValueError) as exc:
+        result = archive_result(record, folder, "partial_failure")
+        result["error"] = scrub_text(str(exc), Counter())
+        result["retry"] = dict(filename=filename, reason=reason, replaced_by=replaced_by)
+        return result
+
+
+@vault_writer
+def restore_archive(archive_id: str) -> dict:
+    """Restore through the same lock, preserving the archive and refusing collisions."""
+    if not isinstance(archive_id, str) or not re.fullmatch(r"[a-f0-9]{64}", archive_id):
+        raise ValueError("invalid archive ID")
+    folder = VAULT / "archive" / archive_id
+    journal = folder / "record.json"
+    for path in (folder.parent, folder, journal):
+        if path.is_symlink():
+            raise ValueError("restore paths must not be symlinks")
+    record = strict_json(journal.read_text(encoding="utf-8"))
+    destination = archive_note_path(record["filename"])
+    archived = folder / record["filename"]
+    if archived.is_symlink():
+        raise ValueError("archived note must not be a symlink")
+    data = archived.read_bytes()
+    if record["stage"] != "complete" or hashlib.sha256(data).hexdigest() != record["sha256"]:
+        raise ValueError("finish archive retry and verify integrity before restoring")
+    if destination.exists():
+        stat = destination.stat()
+        if (
+            record.get("restore_stage") != "prepared"
+            or [stat.st_dev, stat.st_ino] != record.get("restore_identity")
+            or destination.read_bytes() != data
+        ):
+            raise ValueError("restore conflict: destination exists; both files preserved")
+    else:
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        fd, temporary = tempfile.mkstemp(dir=str(destination.parent), suffix=".restore-tmp")
+        try:
+            with os.fdopen(fd, "wb") as stream:
+                stream.write(data)
+                stream.flush()
+                os.fsync(stream.fileno())
+                stat = os.fstat(stream.fileno())
+            record.update(restore_stage="prepared", restore_identity=[stat.st_dev, stat.st_ino])
+            write_atomic(journal, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+            # link is an atomic create-if-absent; even a racing non-MCP writer cannot be overwritten.
+            os.link(temporary, destination)
+        finally:
+            os.unlink(temporary)
+    slug = record["filename"].split("_", 1)[1][:-3]
+    ensure_index_line(slug, record["filename"], "Restored archive " + archive_id)
+    record["restore_stage"] = "complete"
+    write_atomic(journal, json.dumps(record, ensure_ascii=False, indent=2) + "\n")
+    if destination.read_bytes() != data or archived.read_bytes() != data:
+        raise ValueError("restore verification failed")
+    return dict(status="restored", filename=record["filename"], archive_id=archive_id)
+
+
+@vault_writer
 def memory_get(name=None) -> str:
     if not name:
         return (VAULT / INDEX).read_text(encoding="utf-8")
@@ -374,7 +593,8 @@ TOOLS = [
             "개인 메모리에 노트를 저장한다(같은 type+slug이면 갱신). 저장 대상: 사용자 선호·정정 "
             "피드백, 반복되는 교훈, 코드로 알 수 없는 프로젝트 제약, 외부 참조(URL·티켓). "
             "저장하지 않을 것: 코드/git 히스토리가 이미 기록하는 것, 이 대화에서만 유효한 것. "
-            "먼저 memory_get으로 기존 노트를 확인해 중복이면 새 슬러그 대신 그 노트를 갱신하라. "
+            "저장 전 memory_search(purpose=save_review, review=true)로 중복을 검토하고 정확한 파일명으로 "
+            "memory_get하여 의미·범위·근거를 비교하라. 새 정보가 없으면 저장하지 않는다. "
             "관찰한 사실과 추측을 섞지 말고, 확인 못 한 건 '미확인:'으로 표시하라. "
             "시크릿 값은 넣지 마라(서버가 마스킹하지만 애초에 안 넣는 게 맞다)."
         ),
@@ -430,6 +650,8 @@ TOOLS[1]['description'] += (' metadata는 완전한 v1 집합. 생략한 신규 
                             'legacy 갱신은 미검토 유지, v1 갱신은 metadata 생략 거부. '
                             '추론은 candidate, 범위 불명은 현재 등록 프로젝트로 좁혀 scope_inferred=true; '
                             '프로젝트 문맥도 없으면 null candidate. 전역 확대/후보 확정은 사용자 근거가 필요하다.')
+TOOLS[1]['description'] += (' 다른 kind에 같은 slug가 있는 신규 생성은 정확한 충돌 파일명과 함께 거부한다. '
+                            '기존 파일 갱신은 허용하며 보관 노트는 중복 검사에서 제외한다.')
 
 
 def tool(name, description, properties=None, required=None):
@@ -438,9 +660,15 @@ def tool(name, description, properties=None, required=None):
 
 
 TOOLS.extend([
+    tool('memory_archive', '원본을 보존하여 활성 노트와 인덱스에서 제외. 같은 파일명·사유·대체 노트는 같은 보관 작업의 재시도. '
+         '핵심 출처는 거부. partial_failure는 완료가 아니며 같은 인자로 재시도.', {
+             'filename': {'type': 'string'}, 'reason': {'type': 'string'},
+             'replaced_by': {'type': 'string'}}, ['filename', 'reason']),
     tool('memory_search', '키워드 AND 검색. 기본은 현재 문맥의 valid confirmed만. review=true는 격리 항목도 반환. '
+         '저장 전 중복 검토는 purpose=save_review와 review=true를 함께 지정. '
          'project_filter는 조회 필터일 뿐 적용 권한을 넓히지 않음. 작업 파악/대상·주제 변경 시 검색.', {
              'query': {'type': 'string'}, 'current_project_id': {'type': 'string'},
+             'purpose': {'enum': ['retrieval', 'save_review']},
              'project_filter': {'type': 'string'}, 'kind': {'enum': list(TYPES)}, 'review': {'type': 'boolean'}}),
     tool('memory_project_resolve', '명시 등록 ID 또는 작업 대상의 최장 root로 식별. 대상 경로가 cwd보다 우선. '
          '충돌/다중 프로젝트는 targets별로 분리하며 공통 project_id는 null.', {
@@ -457,7 +685,8 @@ TOOLS.extend([
              'manifest': {'type': 'object'}, 'confirmed': {'type': 'boolean'}}, ['manifest', 'confirmed']),
 ])
 DISPATCH = {fn.__name__: fn for fn in (memory_get, memory_save, memory_search, memory_project_resolve,
-                                     memory_project_register, memory_core_initial, memory_core_get, memory_core_save)}
+                                     memory_project_register, memory_core_initial, memory_core_get, memory_core_save,
+                                     memory_archive)}
 
 
 def handle(req):
@@ -541,7 +770,7 @@ def selftest() -> int:
     )
     assert [t["name"] for t in handle({"method": "tools/list"})["tools"]] == [
         "memory_get",
-        "memory_save", "memory_search", "memory_project_resolve", "memory_project_register",
+        "memory_save", "memory_archive", "memory_search", "memory_project_resolve", "memory_project_register",
         "memory_core_initial", "memory_core_get", "memory_core_save",
     ]
 
@@ -619,4 +848,11 @@ def selftest() -> int:
 
 
 if __name__ == "__main__":
+    if len(sys.argv) == 3 and sys.argv[1] == "--restore-archive":
+        try:
+            print(json.dumps(restore_archive(sys.argv[2]), ensure_ascii=False))
+        except (OSError, ValueError, KeyError) as exc:
+            print("Restore failed: " + scrub_text(str(exc), Counter()), file=sys.stderr)
+            sys.exit(1)
+        sys.exit(0)
     sys.exit(selftest() if "--selftest" in sys.argv else serve())
