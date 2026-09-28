@@ -2,7 +2,18 @@
 
 [인터랙티브 구성도](memory-system.html) · [편집 원본](memory-system.architecture.json)
 
-## 확인 범위
+## 2026-09-28 갱신
+
+중복 정리 계획 T1–T3 반영 코드·계약 문서와 `~/99_memory/memory` 읽기 전용 집계를 기준으로 구성도를 갱신했다. 아래 9/15 확인 범위는 이 절에서 바뀐 항목을 제외하고 유지한다.
+
+- [보관 계약 S7](../memory-retrieval-storage-contract.md#s7--명시적-보관과-복원): `memory_archive`가 원본 바이트를 `archive/<보관 ID>/`에 보존하고 활성 인덱스·검색(`review=true` 포함)에서 제외한다. 핵심 출처 노트는 거부하고, 복원은 응답의 `restore_command`로 한다. 구성도에 `archive/` 노드와 연결을 추가했다.
+- 계약 S8: 신규 `memory_save`는 다른 kind의 같은 slug 생성을 거부한다. 저장·보관·복원·핵심 갱신은 같은 `flock` 잠금을 쓴다. 같은 구현을 쓰는 로컬 프로세스 사이의 협력 잠금이다.
+- 계약 S9(T3): 저장 전에는 일반 검색 뒤 `purpose="save_review"`+`review=true`로 후보·legacy까지 검토하고, 정확한 원문 비교 → 병합 저장 → 재조회 → 보관 순서를 따른다. 검토 조회는 자동 적용 승인이 아니다.
+- [검색 훅 복구](../memory-retrieval-hook-recovery-validation.md): 거부 누적 3회 강제 종료를 제거하고 거부 뒤 재시도를 허용한다. 실제 검색 3회 한도는 유지한다.
+- 볼트 집계: 노트 146개(confirmed 25 · candidate 16 · status 없는 legacy 105), 핵심 manifest 4개. `archive/` 디렉터리는 아직 없다(실제 보관 미실행). 9/15의 "승인 노트 4개·legacy 104개"는 당시 운영 기록 수치다.
+- 실행 중인 MCP에 `memory_archive` 도구가 노출된 것은 확인했다. `purpose` 인자 노출은 이 작업에서 확인하지 않았다. 통합 검증·실제 중복 노트 정리는 미완료다. launchd·전역 설정은 이번에도 재감사하지 않았다.
+
+## 확인 범위 (2026-09-15)
 
 2026-09-15 저장소 코드와 적용 기록을 대조했다. 실제 볼트, 전역 설정, launchd 상태를 이번 작업에서 감사하거나 변경하지 않았다. 이 세션에서는 memory_project_resolve와 memory_search의 실제 응답을 확인했다. 노트 수는 운영 기록 당시 수치이며 현재 볼트 재집계가 아니다.
 
@@ -45,20 +56,20 @@ seCall은 과거 대화와 근거를 찾는 별도 경로다. 대화 수집에�
 
 남은 범위는 legacy 점진 검토, 보류된 키워드 회상 실패, MCP 동시 writer 직렬화, 배포 생명주기 변경 뒤 전체 모델 회귀다. 로컬 61개 테스트 통과를 실제 운영의 전 행동 성공으로 해석하지 않는다. 사례 쪽은 재조사 감소 미관찰, 미열람 및 CLI 임시 경로 간섭이 남아 있다.
 
-## 산출물 검증
+## 산출물 검증 (2026-09-28)
 
 - diagram_type: architecture
 - validation: 9/9 showcase, 0 errors, 0 warnings
 - browser_evidence: passed
 - visual_review: passed — 1440×900 light / 2048×1320 dark 캡처의 선·라벨·카드·화면 균형 확인
-- correction_rounds: 2 — 초기 라벨 위치, 데스크톱 세로 여백 조정
-- 자동 브라우저 검증: 1440×900, 1600×1000, 1920×1080, 2048×1320에서 가로·세로 넘침 없음. 양 끝 크기의 light/dark 캡처 완료. 초기 sandbox Chrome 실패 후 허용된 로컬 Chrome 검증으로 재확인했다.
+- correction_rounds: 1 — `검색 · 저장` 라벨이 `memory_archive` 경로와 겹쳐 labelDy 조정. 이후 T3 완료를 반영해 카드 문구만 수정하고 재검증
 - [자동 브라우저 영수증](memory-system.visual-check.json) · [캡처 모음](memory-system.visual-check.html)
 - 구성도 본문은 한국어다. 고정 Viewer UI와 HTML lang은 도구 지원 범위에 따라 영어로 표시된다.
+- 9/15 판의 영수증은 커밋 `248a490`에 있다.
 
 ```text
-specification_sha256: fda752a5b64f2817356dc08984fc1e8b6538c44a443abf7d7cc687630c954edf
-specification_bytes: 4607
-artifact_sha256: 7658d038d95bb2bbdc4ae635ff5fd961b67ca909dd0a4a6c798ad79c966bf635
-artifact_bytes: 712672
+specification_sha256: 16930288ef007e09f3db6d954c831f746e2f63a6ef3956f30b2f9129232c1213
+specification_bytes: 4962
+artifact_sha256: 1a077b621290356fcc5180a9de61cf47302ba3a2ce858648bcde97f45dc6e355
+artifact_bytes: 714651
 ```
